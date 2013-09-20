@@ -33,9 +33,9 @@ class CRF(StructuredModel):
         n_states = len(np.unique(np.hstack([y.ravel() for y in Y])))
         if self.n_states is None:
             self.n_states = n_states
-        elif self.n_states != n_states:
-            raise ValueError("Expected %d states, got %d"
-                             % (self.n_states, n_states))
+#        elif self.n_states != n_states:
+#            raise ValueError("Expected %d states, got %d"
+#                             % (self.n_states, n_states))
 
         self._set_size_psi()
         self._set_class_weight()
