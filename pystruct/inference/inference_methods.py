@@ -107,6 +107,9 @@ def inference_dispatch(unary_potentials, pairwise_potentials, edges,
     if inference_method == "qpbo":
         return inference_qpbo(unary_potentials, pairwise_potentials, edges,
                               **kwargs)
+    elif inference_method == "gco":
+        return inference_gco(unary_potentials, pairwise_potentials, edges,
+                             **kwargs)
     elif inference_method == "dai":
         return inference_dai(unary_potentials, pairwise_potentials, edges,
                              return_energy=return_energy, **kwargs)
@@ -268,6 +271,27 @@ def inference_ogm(unary_potentials, pairwise_potentials, edges,
     if return_energy:
         return res, gm.evaluate(res)  # inference.value() should also do the trick
     return res
+
+
+def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
+    from pygco import cut_from_graph_gen_potts
+    shape_org = unary_potentials.shape[:-1]
+    n_states, pairwise_potentials = \
+        _validate_params(unary_potentials, pairwise_potentials, edges)
+
+    edges = edges.copy().astype(np.int32)
+    pairwise_potentials = (1000 * pairwise_potentials).copy().astype(np.int32)
+
+    pairwise_cost = {}
+    for i in xrange(0, pairwise_potentials.shape[0]):
+        cost = pairwise_potentials[i, 0, 0]
+        if cost >= 0:
+            pairwise_cost[(edges[i, 0], edges[i, 1])] = cost
+
+    unary_potentials = (-1000 * unary_potentials).copy().astype(np.int32)
+
+    y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost)
+    return y[0].reshape(shape_org)
 
 
 def inference_qpbo(unary_potentials, pairwise_potentials, edges, **kwargs):
