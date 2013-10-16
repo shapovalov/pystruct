@@ -16,7 +16,7 @@ def test_binary_blocks_cutting_plane():
     #testing cutting plane ssvm on easy binary dataset
     # generate graphs explicitly for each example
     for inference_method in get_installed(["dai", "lp", "qpbo", "ad3", 'ogm']):
-        print("testing %s" % inference_method)
+        print(("testing %s" % inference_method))
         X, Y = generate_blocks(n_samples=3)
         crf = GraphCRF(inference_method=inference_method)
         clf = NSlackSSVM(model=crf, max_iter=20, C=100, check_constraints=True,
@@ -35,7 +35,7 @@ def test_binary_blocks_cutting_plane():
         X_ = [x.reshape(-1, n_states) for x in X_]
         Y = [y.ravel() for y in [y1, y2, y3]]
 
-        X = zip(X_, G)
+        X = list(zip(X_, G))
 
         clf.fit(X, Y)
         Y_pred = clf.predict(X)

@@ -1,4 +1,4 @@
-import cPickle
+import pickle
 
 
 class SaveLogger(object):
@@ -46,19 +46,19 @@ class SaveLogger(object):
             if "%d" in file_name:
                 file_name = file_name % iteration
             if self.verbose > 0:
-                print("saving %s to file %s" % (learner, file_name))
+                print(("saving %s to file %s" % (learner, file_name)))
             with open(file_name, "wb") as f:
                 if hasattr(learner, 'inference_cache_'):
                     # don't store the large inference cache!
                     learner.inference_cache_, tmp = (None,
                                                      learner.inference_cache_)
-                    cPickle.dump(learner, f, -1)
+                    pickle.dump(learner, f, -1)
                     learner.inference_cache_ = tmp
                 else:
-                    cPickle.dump(learner, f, -1)
+                    pickle.dump(learner, f, -1)
 
     def load(self):
         """Load the model stoed in file_name and return it."""
         with open(self.file_name, "rb") as f:
-            learner = cPickle.load(f)
+            learner = pickle.load(f)
         return learner

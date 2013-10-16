@@ -57,15 +57,15 @@ latent_svm = LatentSSVM(base_ssvm=base_ssvm, latent_iter=2)
 latent_svm.fit(X_train_, y_train)
 
 print("Score with binary SVM:")
-print("Train: {:2.2f}".format(svm.score(X_train_, y_train)))
-print("Test: {:2.2f}".format(svm.score(X_test_, y_test)))
+print(("Train: {:2.2f}".format(svm.score(X_train_, y_train))))
+print(("Test: {:2.2f}".format(svm.score(X_test_, y_test))))
 
 print("Score with latent SVM:")
-print("Train: {:2.2f}".format(latent_svm.score(X_train_, y_train)))
-print("Test: {:2.2f}".format(latent_svm.score(X_test_, y_test)))
+print(("Train: {:2.2f}".format(latent_svm.score(X_train_, y_train))))
+print(("Test: {:2.2f}".format(latent_svm.score(X_test_, y_test))))
 
 h_pred = np.hstack(latent_svm.predict_latent(X_test_))
-print("Latent class counts: %s" % repr(np.bincount(h_pred)))
+print(("Latent class counts: %s" % repr(np.bincount(h_pred))))
 
 # plot first few digits from each latent class
 
@@ -73,7 +73,7 @@ plt.figure(figsize=(3, 5))
 plt.suptitle("Example digits from each of\nthe ten latent classes.")
 n_latent_classes = 10
 n_examples = 7
-for latent_class in xrange(n_latent_classes):
+for latent_class in range(n_latent_classes):
     examples = X_test[h_pred == latent_class][:n_examples]
     for k, example in enumerate(examples):
         plt.subplot(n_latent_classes, n_examples,

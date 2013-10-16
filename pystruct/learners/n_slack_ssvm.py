@@ -186,11 +186,11 @@ class NSlackSSVM(BaseSSVM):
         sv = a > self.inactive_threshold * C
         box = np.dot(blocks, a)
         if self.verbose > 1:
-            print("%d support vectors out of %d points" % (np.sum(sv),
-                                                           n_constraints))
+            print(("%d support vectors out of %d points" % (np.sum(sv),
+                                                           n_constraints)))
             # calculate per example box constraint:
-            print("Box constraints at C: %d" % np.sum(1 - box / C < 1e-3))
-            print("dual objective: %f" % -solution['primal objective'])
+            print(("Box constraints at C: %d" % np.sum(1 - box / C < 1e-3)))
+            print(("dual objective: %f" % -solution['primal objective']))
         self.w = np.dot(a, psi_matrix)
         return -solution['primal objective']
 
@@ -214,13 +214,13 @@ class NSlackSSVM(BaseSSVM):
                 # compute slack for old constraint
                 slack_tmp = max(con[2] - np.dot(self.w, con[1]), 0)
                 if self.verbose > 5:
-                    print("slack old constraint: %f" % slack_tmp)
+                    print(("slack old constraint: %f" % slack_tmp))
                 # if slack of new constraint is smaller or not
                 # significantly larger, don't add constraint.
                 # if smaller, complain about approximate inference.
                 if slack - slack_tmp < -1e-5:
                     if self.verbose > 0:
-                        print("bad inference: %f" % (slack_tmp - slack))
+                        print(("bad inference: %f" % (slack_tmp - slack)))
                     if self.break_on_bad:
                         raise ValueError("bad inference: %f" % (slack_tmp -
                                                                 slack))
@@ -262,8 +262,8 @@ class NSlackSSVM(BaseSSVM):
         stopping_criterion = False
         if constraints is None:
             # fresh start
-            constraints = [[] for i in xrange(n_samples)]
-            self.last_active = [[] for i in xrange(n_samples)]
+            constraints = [[] for i in range(n_samples)]
+            self.last_active = [[] for i in range(n_samples)]
             self.objective_curve_ = []
             self.primal_objective_curve_ = []
             self.timestamps_ = [time()]
@@ -273,11 +273,11 @@ class NSlackSSVM(BaseSSVM):
         try:
             # catch ctrl+c to stop training
             # we have to update at least once after going through the dataset
-            for iteration in xrange(self.max_iter):
+            for iteration in range(self.max_iter):
                 # main loop
                 self.timestamps_.append(time() - self.timestamps_[0])
                 if self.verbose > 0:
-                    print("iteration %d" % iteration)
+                    print(("iteration %d" % iteration))
                 if self.verbose > 2:
                     print(self)
                 new_constraints = 0
@@ -310,7 +310,7 @@ class NSlackSSVM(BaseSSVM):
                         slack_sum += slack
 
                         if self.verbose > 3:
-                            print("current slack: %f" % slack)
+                            print(("current slack: %f" % slack))
 
                         if not loss > 0:
                             # can have y != y_hat but loss = 0 in latent svm.
@@ -339,9 +339,9 @@ class NSlackSSVM(BaseSSVM):
                 self.primal_objective_curve_.append(primal_objective)
 
                 if self.verbose > 0:
-                    print("new constraints: %d, "
+                    print(("new constraints: %d, "
                           "cutting plane objective: %f primal objective: %f" %
-                          (new_constraints, objective, primal_objective))
+                          (new_constraints, objective, primal_objective)))
 
                 if new_constraints == 0:
                     print("no additional constraints")
@@ -355,8 +355,8 @@ class NSlackSSVM(BaseSSVM):
                 if stopping_criterion:
                     if (self.switch_to is not None and
                             self.model.inference_method != self.switch_to):
-                        print("Switching to %s inference" %
-                              str(self.switch_to))
+                        print(("Switching to %s inference" %
+                              str(self.switch_to)))
                         self.model.inference_method_ = \
                             self.model.inference_method
                         self.model.inference_method = self.switch_to
@@ -366,7 +366,7 @@ class NSlackSSVM(BaseSSVM):
                         break
 
                 if self.verbose > 5:
-                    print(self.w)
+                    print((self.w))
 
                 if self.logger is not None:
                     self.logger(self, iteration)
@@ -375,7 +375,7 @@ class NSlackSSVM(BaseSSVM):
 
         self.constraints_ = constraints
         if self.verbose and self.n_jobs == 1:
-            print("calls to inference: %d" % self.model.inference_calls)
+            print(("calls to inference: %d" % self.model.inference_calls))
 
         if verbose:
             print("Computing final objective.")

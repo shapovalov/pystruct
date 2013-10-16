@@ -19,7 +19,7 @@ inference_method = get_installed(["qpbo", "ad3", "lp"])[0]
 def test_multinomial_blocks_one_slack():
     #testing cutting plane ssvm on easy multinomial dataset
     X, Y = generate_blocks_multinomial(n_samples=10, noise=0.5, seed=0)
-    print(np.argmax(X[0], axis=-1))
+    print((np.argmax(X[0], axis=-1)))
     n_labels = len(np.unique(Y))
     crf = GridCRF(n_states=n_labels, inference_method=inference_method)
     clf = OneSlackSSVM(model=crf, max_iter=150, C=1,
@@ -81,7 +81,7 @@ def test_constraint_removal():
 def test_binary_blocks_one_slack_graph():
     #testing cutting plane ssvm on easy binary dataset
     # generate graphs explicitly for each example
-    print("testing %s" % inference_method)
+    print(("testing %s" % inference_method))
     X, Y = generate_blocks(n_samples=3)
     crf = GraphCRF(inference_method=inference_method)
     clf = OneSlackSSVM(model=crf, max_iter=100, C=1,
@@ -101,7 +101,7 @@ def test_binary_blocks_one_slack_graph():
     X_ = [x.reshape(-1, n_states) for x in X_]
     Y = [y.ravel() for y in [y1, y2, y3]]
 
-    X = zip(X_, G)
+    X = list(zip(X_, G))
 
     clf.fit(X, Y)
     Y_pred = clf.predict(X)
@@ -188,4 +188,4 @@ def test_switch_to_ad3():
     # as it might use the relaxation, that is pretty much guraranteed
     assert_greater(ssvm_with_switch.objective_curve_[-1],
                    ssvm.objective_curve_[-1])
-    print(ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1])
+    print((ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1]))
