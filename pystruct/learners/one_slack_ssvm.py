@@ -16,6 +16,9 @@ from sklearn.externals.joblib import Parallel, delayed
 from .ssvm import BaseSSVM
 from ..utils import loss_augmented_inference
 
+from BSP import BSP
+import traceback
+
 
 class NoConstraint(Exception):
     # raised if we can not construct a constraint from cache
@@ -31,9 +34,13 @@ class OneSlackSSVM(BaseSSVM):
 
     Parameters
     ----------
-    model : StructuredModel
-        Object containing the model structure. Has to implement
-        `loss`, `inference` and `loss_augmented_inference`.
+    peer : BSPPeer
+        Hama peer configuration. The model.factory property allows 
+        to construct models for loss and inference methods
+        
+    #model : StructuredModel
+    #    Object containing the model structure. Has to implement
+    #    `loss`, `inference` and `loss_augmented_inference`.
 
     max_iter : int, default=10000
         Maximum number of passes over dataset to find constraints.
@@ -123,16 +130,21 @@ class OneSlackSSVM(BaseSSVM):
 
     """
 
-    def __init__(self, model, max_iter=10000, C=1.0, check_constraints=False,
+    def __init__(self, peer, max_iter=10000, C=1.0, check_constraints=False,
                  verbose=0, negativity_constraint=None, n_jobs=1,
                  break_on_bad=False, show_loss_every=0, tol=1e-3,
                  inference_cache=0, inactive_threshold=1e-5,
                  inactive_window=50, logger=None, cache_tol='auto',
                  switch_to=None):
 
+        module = peer.config.get("model.factory.module")
+        func = peer.config.get("model.factory.function")
+        model = getattr(__import__(module), func)()
         BaseSSVM.__init__(self, model, max_iter, C, verbose=verbose,
                           n_jobs=n_jobs, show_loss_every=show_loss_every,
                           logger=logger)
+                          
+        self.peer = peer
 
         self.negativity_constraint = negativity_constraint
         self.check_constraints = check_constraints
@@ -143,6 +155,8 @@ class OneSlackSSVM(BaseSSVM):
         self.inactive_threshold = inactive_threshold
         self.inactive_window = inactive_window
         self.switch_to = switch_to
+        
+        self.squire = SlaveBSP(self.peer.config.get("master.index"))
 
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it
@@ -193,7 +207,7 @@ class OneSlackSSVM(BaseSSVM):
         except ValueError:
             solution = {'status': 'error'}
         if solution['status'] != "optimal":
-            print("regularizing QP!")
+            self.peer.log("regularizing QP!")
             P = cvxopt.matrix(np.dot(psi_matrix, psi_matrix.T)
                               + 1e-8 * np.eye(psi_matrix.shape[0]))
             solution = cvxopt.solvers.qp(P, q, G, h, A, b)
@@ -208,7 +222,7 @@ class OneSlackSSVM(BaseSSVM):
         # Support vectors have non zero lagrange multipliers
         sv = a > self.inactive_threshold * C
         if self.verbose > 1:
-            print("%d support vectors out of %d points" % (np.sum(sv),
+            self.peer.log("%d support vectors out of %d points" % (np.sum(sv),
                                                            n_constraints))
         self.w = np.dot(a, psi_matrix)
         # we needed to flip the sign to make the dual into a minimization
@@ -242,7 +256,7 @@ class OneSlackSSVM(BaseSSVM):
                               old_constraints, break_on_bad, tol=None):
         violation_difference = violation - self.last_slack_
         if self.verbose > 1:
-            print("New violation: %f difference to last: %f"
+            self.peer.log("New violation: %f difference to last: %f"
                   % (violation, violation_difference))
         if violation_difference < 0 and violation > 0 and break_on_bad:
             raise ValueError("Bad inference: new violation is smaller than"
@@ -251,7 +265,7 @@ class OneSlackSSVM(BaseSSVM):
             tol = self.tol
         if violation_difference < tol:
             if self.verbose:
-                print("new constraint too weak.")
+                self.peer.log("new constraint too weak.")
             return True
         equals = [True for dpsi_, loss_ in old_constraints
                   if (np.all(dpsi_ == dpsi_mean) and loss == loss_)]
@@ -264,12 +278,12 @@ class OneSlackSSVM(BaseSSVM):
                 # compute violation for old constraint
                 violation_tmp = max(con[1] - np.dot(self.w, con[0]), 0)
                 if self.verbose > 5:
-                    print("violation old constraint: %f" % violation_tmp)
+                    self.peer.log("violation old constraint: %f" % violation_tmp)
                 # if violation of new constraint is smaller or not
                 # significantly larger, don't add constraint.
                 # if smaller, complain about approximate inference.
                 if violation - violation_tmp < -1e-5:
-                    print("bad inference: %f" % (violation_tmp - violation))
+                    self.peer.log("bad inference: %f" % (violation_tmp - violation))
                     if break_on_bad:
                         raise ValueError("Bad inference: new violation is"
                                          " weaker than previous constraint.")
@@ -307,13 +321,13 @@ class OneSlackSSVM(BaseSSVM):
         if (not getattr(self, 'inference_cache_', False) or
                 self.inference_cache_ is False):
             if self.verbose > 10:
-                print("Empty cache.")
+                self.peer.log("Empty cache.")
             raise NoConstraint
         gap = self.primal_objective_curve_[-1] - self.objective_curve_[-1]
         if (self.cache_tol == 'auto' and gap < self.cache_tol_):
             # do inference if gap has become to small
             if self.verbose > 1:
-                print("Last gap too small (%f < %f), not loading constraint from cache."
+                self.peer.log("Last gap too small (%f < %f), not loading constraint from cache."
                       % (gap, self.cache_tol_))
             raise NoConstraint
 
@@ -336,29 +350,47 @@ class OneSlackSSVM(BaseSSVM):
         if self._check_bad_constraint(violation, dpsi, loss_mean, constraints,
                                       break_on_bad=False):
             if self.verbose > 1:
-                print("No constraint from cache.")
+                self.peer.log("No constraint from cache.")
             raise NoConstraint
         return Y_hat, dpsi, loss_mean
 
     def _find_new_constraint(self, X, Y, psi_gt, constraints, check=True):
-        if self.n_jobs != 1:
-            # do inference in parallel
-            verbose = max(0, self.verbose - 3)
-            Y_hat = Parallel(n_jobs=self.n_jobs, verbose=verbose)(
-                delayed(loss_augmented_inference)(
-                    self.model, x, y, self.w, relaxed=True)
-                for x, y in zip(X, Y))
+        #    Y_hat = self.model.batch_loss_augmented_inference(
+        #        X, Y, self.w, relaxed=True)
+                
+        for peerName in self.peer.getAllPeerNames():
+          self.peer.send(peerName, str(" ".join(str(i) for i in self.w))) 
+          
+        if self.squire is not None:  
+            gotMsg = self.squire.superstep(peer)
+            assert(gotMsg)
         else:
-            Y_hat = self.model.batch_loss_augmented_inference(
-                X, Y, self.w, relaxed=True)
+            peer.sync()
+            peer.sync()
+
+        Y_hat = []
+        sum_psi = np.zeros(self.model.size_psi)
+        sum_loss = 0.0
+        for msg in peer.getAllMessages():
+            #peer.log("master got msg: %s" % msg)
+            msgs = msg.split(";")
+            assert(len(msgs) == 3)
+            
+            Y_hat += [np.array([int(elem) for elem in y_hat.split()]) 
+                for y_hat in msgs[1].split(",")]
+            sum_psi += np.array([float(elem) for elem in msgs[1].split()])
+            sum_loss += float(msgs[2])
+
+        peer.sync() # to let slaves get empty msg
+        
         # compute the mean over psis and losses
 
         if getattr(self.model, 'rescale_C', False):
-            dpsi = (psi_gt - self.model.batch_psi(X, Y_hat, Y)) / len(X)
+            dpsi = (psi_gt - sum_psi) / len(X)
         else:
-            dpsi = (psi_gt - self.model.batch_psi(X, Y_hat)) / len(X)
+            dpsi = (psi_gt - sum_psi) / len(X)
 
-        loss_mean = np.mean(self.model.batch_loss(Y, Y_hat))
+        loss_mean = sum_loss / len(X)
 
         violation = loss_mean - np.dot(self.w, dpsi)
         if check and self._check_bad_constraint(
@@ -390,7 +422,7 @@ class OneSlackSSVM(BaseSSVM):
             Leave this true except if you really know what you are doing.
         """
         if self.verbose:
-            print("Training 1-slack dual structural SVM")
+            self.peer.log("Training 1-slack dual structural SVM")
         cvxopt.solvers.options['show_progress'] = self.verbose > 3
         if initialize:
             self.model.initialize(X, Y)
@@ -438,9 +470,9 @@ class OneSlackSSVM(BaseSSVM):
                 # main loop
                 cached_constraint = False
                 if self.verbose > 0:
-                    print("iteration %d" % iteration)
+                    self.peer.log("iteration %d" % iteration)
                 if self.verbose > 2:
-                    print(self)
+                    self.peer.log(self)
                 try:
                     Y_hat, dpsi, loss_mean = self._constraint_from_cache(
                         X, Y, psi_gt, constraints)
@@ -452,12 +484,12 @@ class OneSlackSSVM(BaseSSVM):
                         self._update_cache(X, Y, Y_hat)
                     except NoConstraint:
                         if self.verbose:
-                            print("no additional constraints")
+                            self.peer.log("no additional constraints")
                         if (self.switch_to is not None
                                 and self.model.inference_method !=
                                 self.switch_to):
                             if self.verbose:
-                                print("Switching to %s inference" %
+                                self.peer.log("Switching to %s inference" %
                                       str(self.switch_to))
                             self.model.inference_method_ = \
                                 self.model.inference_method
@@ -492,7 +524,7 @@ class OneSlackSSVM(BaseSSVM):
                 if self.verbose > 0:
                     # the cutting plane objective can also be computed as
                     # self.C * len(X) * self.last_slack_ + np.sum(self.w**2)/2
-                    print("cutting plane objective: %f, primal objective %f"
+                    self.peer.log("cutting plane objective: %f, primal objective %f"
                           % (objective, primal_objective))
                 # we only do this here because we didn't add the gt to the
                 # constraints, which makes the dual behave a bit oddly
@@ -502,11 +534,11 @@ class OneSlackSSVM(BaseSSVM):
                     self.logger(self, iteration)
 
                 if self.verbose > 5:
-                    print(self.w)
+                    self.peer.log(self.w)
         except KeyboardInterrupt:
             pass
         if self.verbose and self.n_jobs == 1:
-            print("calls to inference: %d" % self.model.inference_calls)
+            self.peer.log("calls to inference: %d" % self.model.inference_calls)
         # compute final objective:
         self.timestamps_.append(time() - self.timestamps_[0])
         primal_objective = self._objective(X, Y)
@@ -518,7 +550,118 @@ class OneSlackSSVM(BaseSSVM):
             self.logger(self, 'final')
 
         if self.verbose > 0:
-            print("final primal objective: %f gap: %f"
+            self.peer.log("final primal objective: %f gap: %f"
                   % (primal_objective, primal_objective - objective))
 
         return self
+        
+        
+
+class MasterSlaveBSP(BSP):
+    def setup(self, peer):
+        self.master_index = peer.config.get("master.index")
+
+        if peer.getPeerIndex() != self.master_index:
+            self.impl = MasterBSP()
+        else:
+            self.impl = SlaveBSP(self.master_index)
+
+        try:
+            self.impl.setup(peer)
+        except:
+            peer.log("".join(traceback.format_exc().splitlines()))
+
+    def bsp(self, peer):
+        try:
+            self.impl.bsp(peer)
+        except:
+            peer.log("".join(traceback.format_exc().splitlines()))
+
+    def cleanup(self, peer):
+        try:
+            self.impl.cleanup(peer)
+        except:
+            peer.log("".join(traceback.format_exc().splitlines()))
+            
+            
+class SlaveBSP:
+    def __init__(self, master_id):
+        self.master_id = master_id
+
+    def setup(self, peer):
+        self.X = []
+        self.Y = []
+        self.imgnums = []
+        
+        module = peer.config.get("model.factory.module")
+        func = peer.config.get("model.factory.function")
+        self.model = getattr(__import__(module), func)()
+        
+        while True:
+            line = peer.readNext()
+
+            if not line:
+                break
+            #peer.log("%s, %s" %(line[0], line[1]))
+            
+            un_str, pw_str, lab_str = line[1].split(";")
+            
+            un_feat = np.genfromtxt(io.BytesIO(un_str.replace(",","\n").encode()))
+            pw_feat = np.genfromtxt(io.BytesIO(pw_str.replace(",","\n").encode()))
+            lab_feat = np.genfromtxt(io.BytesIO(lab_str.replace(",","\n").encode()))
+            
+            img_num = un_feat[0,0]
+            assert(np.any(un_feat[:,0] == img_num))
+            assert(np.any(pw_feat[:,0] == img_num))
+            assert(np.any(lab_feat[:,0] == img_num))
+            
+            self.imgnums.append(img_num)
+            self.X.append((un_feat[:,2:],pw_feat[:,1:3],pw_feat[:,3:]))
+            self.Y.append(lab_feat[:,2])
+            peer.log("Object %d processed!" % img_num)
+                
+
+    def bsp(self, peer):
+        while self.superstep(peer):
+            pass
+
+    def cleanup(self, peer):
+        pass
+
+    def superstep(self, peer):
+        peer.sync()
+        msg = peer.getCurrentMessage()
+        if not msg:
+            return False
+
+        w = np.array([int(elem) for elem in msg.split()])
+        
+        Y_hat = self.model.batch_loss_augmented_inference(X, Y, w, relaxed=False)
+        sum_psi = self.model.batch_psi(X, Y_hat, 
+            Y if getattr(self.model, 'rescale_C', False) else None)
+
+        sum_loss = np.sum(self.model.batch_loss(Y, Y_hat))
+        
+        peer.send(peer.getPeerNameForIndex(self.master_id), 
+                ",".join(" ".join(str(i) for i in y_hat) for y_hat in Y_hat) + ";" + 
+                " ".join(str(i) for i in sum_psi) + ";" + str(sum_loss))
+        peer.sync()
+        
+        return True
+        
+        
+class MasterBSP:
+    def setup(self, peer):
+        if self.squire is not None:
+            self.squire.setup(peer)
+
+    def bsp(self, peer):
+        module = peer.config.get("entry.point.module")
+        func = peer.config.get("entry.point.function")
+        getattr(__import__(module), func)(peer)
+        
+        #peer.write(result, "")
+        
+    def cleanup(self, peer):
+        if self.squire is not None:
+            self.squire.cleanup(peer)
