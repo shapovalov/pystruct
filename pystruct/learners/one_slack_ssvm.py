@@ -310,7 +310,7 @@ class OneSlackSSVM(BaseSSVM):
 
         def constraint_equal(y_1, y_2):
             if isinstance(y_1, tuple):
-                return np.all(y_1[0] == y_2[1]) and np.all(y_1[1] == y_2[1])
+                return np.all(y_1[0] == y_2[0]) and np.all(y_1[1] == y_2[1])
             return np.all(y_1 == y_2)
 
         for sample, y_hat, dpsi, loss in zip(self.inference_cache_, Y_hat, Dpsi, Loss):
