@@ -113,9 +113,9 @@ class SubgradientSSVM(BaseSSVM):
         if self.adagrad:
             self.grad_old += grad ** 2
             self.w += self.learning_rate * grad / (1. + np.sqrt(self.grad_old))
-            print("grad old %f" % np.mean(self.grad_old))
-            print("effective lr %f" % (self.learning_rate /
-                                       np.mean(1. + np.sqrt(self.grad_old))))
+            print(("grad old %f" % np.mean(self.grad_old)))
+            print(("effective lr %f" % (self.learning_rate /
+                                       np.mean(1. + np.sqrt(self.grad_old)))))
         else:
             self.grad_old = ((1 - self.momentum) * grad
                              + self.momentum * self.grad_old)
@@ -164,7 +164,7 @@ class SubgradientSSVM(BaseSSVM):
             self.timestamps_ = (np.array(self.timestamps_) - time()).tolist()
         try:
             # catch ctrl+c to stop training
-            for iteration in xrange(self.max_iter):
+            for iteration in range(self.max_iter):
                 if self.n_jobs == 1:
                     objective, positive_slacks = self._sequential_learning(X,
                                                                            Y)
@@ -180,15 +180,15 @@ class SubgradientSSVM(BaseSSVM):
                         break
                 if self.verbose > 0:
                     print(self)
-                    print("iteration %d" % iteration)
-                    print("positive slacks: %d,"
+                    print(("iteration %d" % iteration))
+                    print(("positive slacks: %d,"
                           "objective: %f" %
-                          (positive_slacks, objective))
+                          (positive_slacks, objective)))
                 self.timestamps_.append(time() - self.timestamps_[0])
                 self.objective_curve_.append(objective)
 
                 if self.verbose > 2:
-                    print(self.w)
+                    print((self.w))
 
                 self._compute_training_loss(X, Y, iteration)
                 if self.logger is not None:
@@ -206,9 +206,9 @@ class SubgradientSSVM(BaseSSVM):
             self.logger(self, 'final')
         if self.verbose:
             if self.objective_curve_:
-                print("final objective: %f" % self.objective_curve_[-1])
+                print(("final objective: %f" % self.objective_curve_[-1]))
             if self.verbose and self.n_jobs == 1:
-                print("calls to inference: %d" % self.model.inference_calls)
+                print(("calls to inference: %d" % self.model.inference_calls))
 
         return self
 

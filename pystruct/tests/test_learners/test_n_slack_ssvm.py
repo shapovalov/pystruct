@@ -92,7 +92,7 @@ def test_switch_to_ad3():
     # as it might use the relaxation, that is pretty much guraranteed
     assert_greater(ssvm_with_switch.objective_curve_[-1],
                    ssvm.objective_curve_[-1])
-    print(ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1])
+    print((ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1]))
 
     # test that convergence also results in switch
     ssvm_with_switch = NSlackSSVM(crf, max_iter=10000, switch_to=('ad3'),

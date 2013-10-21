@@ -31,9 +31,13 @@ class OneSlackSSVM(BaseSSVM):
 
     Parameters
     ----------
-    model : StructuredModel
-        Object containing the model structure. Has to implement
-        `loss`, `inference` and `loss_augmented_inference`.
+    peer : BSPPeer
+        Hama peer configuration. The model.factory property allows 
+        to construct models for loss and inference methods
+        
+    #model : StructuredModel
+    #    Object containing the model structure. Has to implement
+    #    `loss`, `inference` and `loss_augmented_inference`.
 
     max_iter : int, default=10000
         Maximum number of passes over dataset to find constraints.
@@ -123,16 +127,21 @@ class OneSlackSSVM(BaseSSVM):
 
     """
 
-    def __init__(self, model, max_iter=10000, C=1.0, check_constraints=False,
+    def __init__(self, peer, max_iter=10000, C=1.0, check_constraints=False,
                  verbose=0, negativity_constraint=None, n_jobs=1,
                  break_on_bad=False, show_loss_every=0, tol=1e-3,
                  inference_cache=0, inactive_threshold=1e-5,
                  inactive_window=50, logger=None, cache_tol='auto',
                  switch_to=None):
 
+        module = peer.config.get("model.factory.module")
+        func = peer.config.get("model.factory.function")
+        model = getattr(__import__(module), func)()
         BaseSSVM.__init__(self, model, max_iter, C, verbose=verbose,
                           n_jobs=n_jobs, show_loss_every=show_loss_every,
                           logger=logger)
+                          
+        self.peer = peer
 
         self.negativity_constraint = negativity_constraint
         self.check_constraints = check_constraints
@@ -143,6 +152,20 @@ class OneSlackSSVM(BaseSSVM):
         self.inactive_threshold = inactive_threshold
         self.inactive_window = inactive_window
         self.switch_to = switch_to
+        
+        self.n_ex = 100 # TEMP TODO: set this from configs or request from peers
+        
+        from MasterSlaveBSP import SlaveBSP  # just to test
+        self.squire = SlaveBSP(self.peer.config.get("master.index"))
+        self.squire.setup(self.peer)
+        
+    # override
+    def _objective(self):
+        _, _, _, Dpsi, Loss = _find_new_constraint(self, constraints=[], check=False)
+        slacks = [max(loss - np.dot(self.w, dpsi), 0) for loss,dpsi in zip(Loss, Dpsi)]
+        objective = sum(slacks) * self.C + np.sum(self.w ** 2) / 2.
+            
+        return objective
 
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it
@@ -193,7 +216,7 @@ class OneSlackSSVM(BaseSSVM):
         except ValueError:
             solution = {'status': 'error'}
         if solution['status'] != "optimal":
-            print("regularizing QP!")
+            self.peer.log("regularizing QP!")
             P = cvxopt.matrix(np.dot(psi_matrix, psi_matrix.T)
                               + 1e-8 * np.eye(psi_matrix.shape[0]))
             solution = cvxopt.solvers.qp(P, q, G, h, A, b)
@@ -208,7 +231,7 @@ class OneSlackSSVM(BaseSSVM):
         # Support vectors have non zero lagrange multipliers
         sv = a > self.inactive_threshold * C
         if self.verbose > 1:
-            print("%d support vectors out of %d points" % (np.sum(sv),
+            self.peer.log("%d support vectors out of %d points" % (np.sum(sv),
                                                            n_constraints))
         self.w = np.dot(a, psi_matrix)
         # we needed to flip the sign to make the dual into a minimization
@@ -242,7 +265,7 @@ class OneSlackSSVM(BaseSSVM):
                               old_constraints, break_on_bad, tol=None):
         violation_difference = violation - self.last_slack_
         if self.verbose > 1:
-            print("New violation: %f difference to last: %f"
+            self.peer.log("New violation: %f difference to last: %f"
                   % (violation, violation_difference))
         if violation_difference < 0 and violation > 0 and break_on_bad:
             raise ValueError("Bad inference: new violation is smaller than"
@@ -251,7 +274,7 @@ class OneSlackSSVM(BaseSSVM):
             tol = self.tol
         if violation_difference < tol:
             if self.verbose:
-                print("new constraint too weak.")
+                self.peer.log("new constraint too weak.")
             return True
         equals = [True for dpsi_, loss_ in old_constraints
                   if (np.all(dpsi_ == dpsi_mean) and loss == loss_)]
@@ -264,19 +287,20 @@ class OneSlackSSVM(BaseSSVM):
                 # compute violation for old constraint
                 violation_tmp = max(con[1] - np.dot(self.w, con[0]), 0)
                 if self.verbose > 5:
-                    print("violation old constraint: %f" % violation_tmp)
+                    self.peer.log("violation old constraint: %f" % violation_tmp)
                 # if violation of new constraint is smaller or not
                 # significantly larger, don't add constraint.
                 # if smaller, complain about approximate inference.
                 if violation - violation_tmp < -1e-5:
-                    print("bad inference: %f" % (violation_tmp - violation))
+                    self.peer.log("bad inference: %f" % (violation_tmp - violation))
                     if break_on_bad:
                         raise ValueError("Bad inference: new violation is"
                                          " weaker than previous constraint.")
                     return True
         return False
 
-    def _update_cache(self, X, Y, Y_hat):
+    #def _update_cache(self, X, Y, Y_hat):
+    def _update_cache(self, Y_hat, Dpsi, Loss):
         """Updated cached constraints."""
         if self.inference_cache == 0:
             return
@@ -284,8 +308,9 @@ class OneSlackSSVM(BaseSSVM):
                 or self.inference_cache_ is None):
             self.inference_cache_ = [[] for y in Y_hat]
 
-        for sample, x, y, y_hat in zip(self.inference_cache_, X, Y, Y_hat):
+        for sample, y_hat, dpsi, loss in zip(self.inference_cache_, Y_hat, Dpsi, Loss):
             already_there = [y_hat == cache[2] for cache in sample]
+
             if np.any(already_there):
                 continue
             if len(sample) > self.inference_cache:
@@ -294,20 +319,21 @@ class OneSlackSSVM(BaseSSVM):
             # this makes it a little less efficient in the caching case.
             # the idea is that if we cache, inference is way more expensive
             # and this doesn't matter much.
-            sample.append((self.model.psi(x, y_hat),
-                           self.model.loss(y, y_hat), y_hat))
+            # Roma: due to other concerns, don’t recompute any more
+            sample.append((dpsi, loss, y_hat))
 
-    def _constraint_from_cache(self, X, Y, psi_gt, constraints):
+    #def _constraint_from_cache(self, X, Y, psi_gt, constraints):
+    def _constraint_from_cache(self, constraints):
         if (not getattr(self, 'inference_cache_', False) or
                 self.inference_cache_ is False):
             if self.verbose > 10:
-                print("Empty cache.")
+                self.peer.log("Empty cache.")
             raise NoConstraint
         gap = self.primal_objective_curve_[-1] - self.objective_curve_[-1]
         if (self.cache_tol == 'auto' and gap < self.cache_tol_):
             # do inference if gap has become to small
             if self.verbose > 1:
-                print("Last gap too small (%f < %f), not loading constraint from cache."
+                self.peer.log("Last gap too small (%f < %f), not loading constraint from cache."
                       % (gap, self.cache_tol_))
             raise NoConstraint
 
@@ -316,52 +342,78 @@ class OneSlackSSVM(BaseSSVM):
         loss_mean = 0
         for cached in self.inference_cache_:
             # cached has entries of form (psi, loss, y_hat)
-            violations = [np.dot(psi, self.w) + loss
-                          for psi, loss, _ in cached]
-            psi, loss, y_hat = cached[np.argmax(violations)]
+            violations = [-np.dot(dpsi, self.w) + loss
+                          for dpsi, loss, _ in cached]
+            dpsi, loss, y_hat = cached[np.argmax(violations)]
             Y_hat.append(y_hat)
-            psi_acc += psi
+            dpsi_acc += dpsi
             loss_mean += loss
 
-        dpsi = (psi_gt - psi_acc) / len(X)
-        loss_mean = loss_mean / len(X)
+        dpsi = psi_acc / self.n_ex
+        loss_mean = loss_mean / self.n_ex
 
         violation = loss_mean - np.dot(self.w, dpsi)
         if self._check_bad_constraint(violation, dpsi, loss_mean, constraints,
                                       break_on_bad=False):
             if self.verbose > 1:
-                print("No constraint from cache.")
+                self.peer.log("No constraint from cache.")
             raise NoConstraint
         return Y_hat, dpsi, loss_mean
 
-    def _find_new_constraint(self, X, Y, psi_gt, constraints, check=True):
-        if self.n_jobs != 1:
-            # do inference in parallel
-            verbose = max(0, self.verbose - 3)
-            Y_hat = Parallel(n_jobs=self.n_jobs, verbose=verbose)(
-                delayed(loss_augmented_inference)(
-                    self.model, x, y, self.w, relaxed=True)
-                for x, y in zip(X, Y))
+    #def _find_new_constraint(self, X, Y, psi_gt, constraints, check=True):
+    def _find_new_constraint(self, constraints, check=True):
+        #    Y_hat = self.model.batch_loss_augmented_inference(
+        #        X, Y, self.w, relaxed=True)
+                
+        for peerName in self.peer.getAllPeerNames():
+          self.peer.send(peerName, str(" ".join(str(i) for i in self.w))) 
+          
+        if self.squire is not None:  
+            gotMsg = self.squire.superstep(self.peer)
+            assert(gotMsg)
         else:
-            Y_hat = self.model.batch_loss_augmented_inference(
-                X, Y, self.w, relaxed=True)
+            self.peer.sync()
+            self.peer.sync()
+
+        Y_hat = []
+        Dpsi = []
+        Loss = []
+        sum_dpsi = np.zeros(self.model.size_psi)
+        sum_loss = 0.0
+        for msg in self.peer.getAllMessages():
+            #peer.log("master got msg: %s" % msg)
+            msgs = msg.split(";")
+            assert(len(msgs) == 5)
+            
+            Y_hat += [np.array([int(elem) for elem in y_hat.split()]) 
+                for y_hat in msgs[0].split(",")]
+            Dpsi += [np.array([float(elem) for elem in y_hat.split()]) 
+                for y_hat in msgs[1].split(",")]
+            sum_dpsi += np.array([float(elem) for elem in msgs[2].split()])
+            Loss += np.array([float(elem) for elem in msgs[3].split()])
+            sum_loss += float(msgs[4])
+
+        self.peer.sync() # to let slaves get empty msg
+        
         # compute the mean over psis and losses
 
-        if getattr(self.model, 'rescale_C', False):
-            dpsi = (psi_gt - self.model.batch_psi(X, Y_hat, Y)) / len(X)
-        else:
-            dpsi = (psi_gt - self.model.batch_psi(X, Y_hat)) / len(X)
+        #if getattr(self.model, 'rescale_C', False):
+        #    dpsi = (psi_gt - sum_psi) / len(X)
+        #else:
+        #    dpsi = (psi_gt - sum_psi) / len(X)
 
-        loss_mean = np.mean(self.model.batch_loss(Y, Y_hat))
+        dpsi = sum_dpsi / self.n_ex
+        loss_mean = sum_loss / self.n_ex
 
         violation = loss_mean - np.dot(self.w, dpsi)
         if check and self._check_bad_constraint(
                 violation, dpsi, loss_mean, constraints,
                 break_on_bad=self.break_on_bad):
             raise NoConstraint
-        return Y_hat, dpsi, loss_mean
-
-    def fit(self, X, Y, constraints=None, warm_start=False, initialize=True):
+        return Y_hat, dpsi, loss_mean, Dpsi, Loss
+        
+    #def fit(self, X, Y, constraints=None, warm_start=False, initialize=True):
+    def fit(self, constraints=None, warm_start=False, initialize=True):
         """Learn parameters using cutting plane method.
 
         Parameters
@@ -384,10 +436,10 @@ class OneSlackSSVM(BaseSSVM):
             Leave this true except if you really know what you are doing.
         """
         if self.verbose:
-            print("Training 1-slack dual structural SVM")
+            self.peer.log("Training 1-slack dual structural SVM")
         cvxopt.solvers.options['show_progress'] = self.verbose > 3
-        if initialize:
-            self.model.initialize(X, Y)
+        #if initialize:
+        #    self.model.initialize(X, Y)  # TODO!!!
 
         # parse cache_tol parameter
         if self.cache_tol is None or self.cache_tol == 'auto':
@@ -420,38 +472,37 @@ class OneSlackSSVM(BaseSSVM):
         self.last_slack_ = -1
 
         # get the psi of the ground truth
-        if getattr(self.model, 'rescale_C', False):
-            psi_gt = self.model.batch_psi(X, Y, Y)
-        else:
-            psi_gt = self.model.batch_psi(X, Y)
+        #if getattr(self.model, 'rescale_C', False):
+        #    psi_gt = self.model.batch_psi(X, Y, Y)
+        #else:
+        #    psi_gt = self.model.batch_psi(X, Y)
 
         try:
             # catch ctrl+c to stop training
 
-            for iteration in xrange(self.max_iter):
+            for iteration in range(self.max_iter):
                 # main loop
                 cached_constraint = False
                 if self.verbose > 0:
-                    print("iteration %d" % iteration)
+                    self.peer.log("iteration %d" % iteration)
                 if self.verbose > 2:
-                    print(self)
+                    self.peer.log(self)
                 try:
-                    Y_hat, dpsi, loss_mean = self._constraint_from_cache(
-                        X, Y, psi_gt, constraints)
+                    Y_hat, dpsi, loss_mean = self._constraint_from_cache(constraints)
                     cached_constraint = True
                 except NoConstraint:
                     try:
-                        Y_hat, dpsi, loss_mean = self._find_new_constraint(
-                            X, Y, psi_gt, constraints)
-                        self._update_cache(X, Y, Y_hat)
+                        Y_hat, dpsi, loss_mean, Dpsi, Loss = self._find_new_constraint(
+                            constraints)
+                        self._update_cache(Y_hat, Dpsi, Loss)
                     except NoConstraint:
                         if self.verbose:
-                            print("no additional constraints")
+                            self.peer.log("no additional constraints")
                         if (self.switch_to is not None
                                 and self.model.inference_method !=
                                 self.switch_to):
                             if self.verbose:
-                                print("Switching to %s inference" %
+                                self.peer.log("Switching to %s inference" %
                                       str(self.switch_to))
                             self.model.inference_method_ = \
                                 self.model.inference_method
@@ -461,19 +512,20 @@ class OneSlackSSVM(BaseSSVM):
                             break
 
                 self.timestamps_.append(time() - self.timestamps_[0])
-                self._compute_training_loss(X, Y, iteration)
+                # TODO: implement when prediction infrastracture is ready
+                #self._compute_training_loss(X, Y, iteration)
                 constraints.append((dpsi, loss_mean))
 
                 # compute primal objective
                 last_slack = -np.dot(self.w, dpsi) + loss_mean
-                primal_objective = (self.C * len(X)
+                primal_objective = (self.C * self.n_ex
                                     * np.max(last_slack, 0)
                                     + np.sum(self.w ** 2) / 2)
                 self.primal_objective_curve_.append(primal_objective)
                 self.cached_constraint_.append(cached_constraint)
 
                 objective = self._solve_1_slack_qp(constraints,
-                                                   n_samples=len(X))
+                                                   n_samples=self.n_ex)
 
                 # update cache tolerance if cache_tol is auto:
                 if self.cache_tol == "auto" and not cached_constraint:
@@ -486,7 +538,7 @@ class OneSlackSSVM(BaseSSVM):
                 if self.verbose > 0:
                     # the cutting plane objective can also be computed as
                     # self.C * len(X) * self.last_slack_ + np.sum(self.w**2)/2
-                    print("cutting plane objective: %f, primal objective %f"
+                    self.peer.log("cutting plane objective: %f, primal objective %f"
                           % (objective, primal_objective))
                 # we only do this here because we didn't add the gt to the
                 # constraints, which makes the dual behave a bit oddly
@@ -496,23 +548,26 @@ class OneSlackSSVM(BaseSSVM):
                     self.logger(self, iteration)
 
                 if self.verbose > 5:
-                    print(self.w)
+                    self.peer.log(self.w)
         except KeyboardInterrupt:
             pass
         if self.verbose and self.n_jobs == 1:
-            print("calls to inference: %d" % self.model.inference_calls)
+            self.peer.log("calls to inference: %d" % self.model.inference_calls)
         # compute final objective:
         self.timestamps_.append(time() - self.timestamps_[0])
-        primal_objective = self._objective(X, Y)
+        primal_objective = self._objective()
         self.primal_objective_curve_.append(primal_objective)
         self.objective_curve_.append(objective)
         self.cached_constraint_.append(False)
+
+        self.squire.cleanup(self.peer)
 
         if self.logger is not None:
             self.logger(self, 'final')
 
         if self.verbose > 0:
-            print("final primal objective: %f gap: %f"
+            self.peer.log("final primal objective: %f gap: %f"
                   % (primal_objective, primal_objective - objective))
 
         return self
+        

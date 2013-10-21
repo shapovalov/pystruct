@@ -121,9 +121,9 @@ def main():
     X_test_directions, X_test_edge_features = prepare_data(X_test)
     Y_pred = ssvm.predict(X_test_directions)
     print("Results using only directional features for edges")
-    print("Test accuracy: %.3f"
-          % accuracy_score(np.hstack(Y_test_flat), np.hstack(Y_pred)))
-    print(confusion_matrix(np.hstack(Y_test_flat), np.hstack(Y_pred)))
+    print(("Test accuracy: %.3f"
+          % accuracy_score(np.hstack(Y_test_flat), np.hstack(Y_pred))))
+    print((confusion_matrix(np.hstack(Y_test_flat), np.hstack(Y_pred))))
 
     # now, use more informative edge features:
     crf = EdgeFeatureGraphCRF(inference_method=inference)
@@ -132,9 +132,9 @@ def main():
     ssvm.fit(X_train_edge_features, Y_train_flat)
     Y_pred2 = ssvm.predict(X_test_edge_features)
     print("Results using also input features for edges")
-    print("Test accuracy: %.3f"
-          % accuracy_score(np.hstack(Y_test_flat), np.hstack(Y_pred2)))
-    print(confusion_matrix(np.hstack(Y_test_flat), np.hstack(Y_pred2)))
+    print(("Test accuracy: %.3f"
+          % accuracy_score(np.hstack(Y_test_flat), np.hstack(Y_pred2))))
+    print((confusion_matrix(np.hstack(Y_test_flat), np.hstack(Y_pred2))))
 
     # plot stuff
     fig, axes = plt.subplots(2, 2)

@@ -46,16 +46,16 @@ start = time()
 n_slack_svm.fit(X_train_bias, y_train)
 time_n_slack_svm = time() - start
 y_pred = np.hstack(n_slack_svm.predict(X_test_bias))
-print("Score with pystruct n-slack ssvm: %f (took %f seconds)"
-      % (np.mean(y_pred == y_test), time_n_slack_svm))
+print(("Score with pystruct n-slack ssvm: %f (took %f seconds)"
+      % (np.mean(y_pred == y_test), time_n_slack_svm)))
 
 ## 1-slack cutting plane ssvm
 start = time()
 one_slack_svm.fit(X_train_bias, y_train)
 time_one_slack_svm = time() - start
 y_pred = np.hstack(one_slack_svm.predict(X_test_bias))
-print("Score with pystruct 1-slack ssvm: %f (took %f seconds)"
-      % (np.mean(y_pred == y_test), time_one_slack_svm))
+print(("Score with pystruct 1-slack ssvm: %f (took %f seconds)"
+      % (np.mean(y_pred == y_test), time_one_slack_svm)))
 
 #online subgradient ssvm
 start = time()
@@ -63,8 +63,8 @@ subgradient_svm.fit(X_train_bias, y_train)
 time_subgradient_svm = time() - start
 y_pred = np.hstack(subgradient_svm.predict(X_test_bias))
 
-print("Score with pystruct subgradient ssvm: %f (took %f seconds)"
-      % (np.mean(y_pred == y_test), time_subgradient_svm))
+print(("Score with pystruct subgradient ssvm: %f (took %f seconds)"
+      % (np.mean(y_pred == y_test), time_subgradient_svm)))
 
 # the standard one-vs-rest multi-class would probably be as good and faster
 # but solving a different model
@@ -72,22 +72,22 @@ libsvm = LinearSVC(multi_class='crammer_singer', C=.1)
 start = time()
 libsvm.fit(X_train, y_train)
 time_libsvm = time() - start
-print("Score with sklearn and libsvm: %f (took %f seconds)"
-      % (libsvm.score(X_test, y_test), time_libsvm))
+print(("Score with sklearn and libsvm: %f (took %f seconds)"
+      % (libsvm.score(X_test, y_test), time_libsvm)))
 
 
 start = time()
 fw_bc_svm.fit(X_train_bias, y_train)
 y_pred = np.hstack(fw_bc_svm.predict(X_test_bias))
 time_fw_bc_svm = time() - start
-print("Score with pystruct frankwolfe block coordinate ssvm: %f (took %f seconds)" %
-      (np.mean(y_pred == y_test), time_fw_bc_svm))
+print(("Score with pystruct frankwolfe block coordinate ssvm: %f (took %f seconds)" %
+      (np.mean(y_pred == y_test), time_fw_bc_svm)))
 
 start = time()
 fw_batch_svm.fit(X_train_bias, y_train)
 y_pred = np.hstack(fw_batch_svm.predict(X_test_bias))
 time_fw_batch_svm = time() - start
-print("Score with pystruct frankwolfe batch ssvm: %f (took %f seconds)" %
-      (np.mean(y_pred == y_test), time_fw_batch_svm))
+print(("Score with pystruct frankwolfe batch ssvm: %f (took %f seconds)" %
+      (np.mean(y_pred == y_test), time_fw_batch_svm)))
 #from IPython.core.debugger import Tracer
 #Tracer()()

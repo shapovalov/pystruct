@@ -12,7 +12,7 @@ from pystruct.utils import SaveLogger
 
 def main():
     argv = sys.argv
-    print("loading %s ..." % argv[1])
+    print(("loading %s ..." % argv[1]))
     ssvm = SaveLogger(file_name=argv[1]).load()
     plot_learning(ssvm)
 
@@ -43,14 +43,14 @@ def plot_learning(ssvm, time=True):
     print(ssvm)
     if hasattr(ssvm, 'base_ssvm'):
         ssvm = ssvm.base_ssvm
-    print("Iterations: %d" % len(ssvm.objective_curve_))
-    print("Objective: %f" % ssvm.objective_curve_[-1])
+    print(("Iterations: %d" % len(ssvm.objective_curve_)))
+    print(("Objective: %f" % ssvm.objective_curve_[-1]))
     inference_run = None
     if hasattr(ssvm, 'cached_constraint_'):
         inference_run = ~np.array(ssvm.cached_constraint_)
-        print("Gap: %f" %
+        print(("Gap: %f" %
               (np.array(ssvm.primal_objective_curve_)[inference_run][-1] -
-               ssvm.objective_curve_[-1]))
+               ssvm.objective_curve_[-1])))
     if hasattr(ssvm, "loss_curve_"):
         n_plots = 2
         fig, axes = plt.subplots(1, 2)

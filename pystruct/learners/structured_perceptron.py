@@ -113,7 +113,7 @@ class StructuredPerceptron(BaseSSVM):
         self.loss_curve_ = []
         max_losses = np.sum([self.model.max_loss(y) for y in Y])
         try:
-            for iteration in xrange(self.max_iter):
+            for iteration in range(self.max_iter):
                 if self.average == -1:
                     # By resetting at every iteration we effectively get
                     # averaging over the last one.
@@ -123,7 +123,7 @@ class StructuredPerceptron(BaseSSVM):
                                 self.decay_exponent)
                 losses = 0
                 if self.verbose:
-                    print("iteration %d" % iteration)
+                    print(("iteration %d" % iteration))
                 if self.batch:
                     Y_hat = (Parallel(n_jobs=self.n_jobs)(
                         delayed(inference)(self.model, x, self.w) for x, y in
@@ -154,9 +154,9 @@ class StructuredPerceptron(BaseSSVM):
                                      (1. / n_obs) * self.w)
                 self.loss_curve_.append(float(losses) / max_losses)
                 if self.verbose:
-                    print("avg loss: %f w: %s" % (self.loss_curve_[-1],
-                                                  str(self.w)))
-                    print("effective learning rate: %f" % effective_lr)
+                    print(("avg loss: %f w: %s" % (self.loss_curve_[-1],
+                                                  str(self.w))))
+                    print(("effective learning rate: %f" % effective_lr))
                 if self.loss_curve_[-1] == 0:
                     print("Loss zero. Stopping.")
                     break

@@ -14,7 +14,7 @@ def test_chain():
                                 ('ogm', {'alg':'dd'}),
                                 ('ogm', {'alg':'trw'}),
                                 ('dai', {'alg':'jt'})])
-    for i in xrange(10):
+    for i in range(10):
         forward = np.c_[np.arange(9), np.arange(1, 10)]
         backward = np.c_[np.arange(1, 10), np.arange(9)]
         unary_potentials = rnd.normal(size=(10, 3))

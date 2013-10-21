@@ -13,12 +13,13 @@ import shutil
 import traceback
 import glob
 import sys
-from StringIO import StringIO
-import cPickle
+from io import StringIO
+import pickle
 import re
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import gzip
 import posixpath
+import collections
 
 try:
     from PIL import Image
@@ -57,7 +58,7 @@ class Tee(object):
 def get_data(url):
     """Helper function to get data over http or from a local file"""
     if url.startswith('http://'):
-        resp = urllib2.urlopen(url)
+        resp = urllib.request.urlopen(url)
         encoding = resp.headers.dict.get('content-encoding', 'plain')
         data = resp.read()
         if encoding == 'plain':
@@ -222,11 +223,11 @@ class SphinxDocLinkResolver(object):
         if full_name in self._searchindex['objects']:
             value = self._searchindex['objects'][full_name]
             if isinstance(value, dict):
-                value = value[value.keys()[0]]
+                value = value[list(value.keys())[0]]
             fname_idx = value[0]
         elif cobj['module_short'] in self._searchindex['objects']:
             value = self._searchindex['objects'][cobj['module_short']]
-            if cobj['name'] in value.keys():
+            if cobj['name'] in list(value.keys()):
                 fname_idx = value[cobj['name']][0]
 
         if fname_idx is not None:
@@ -366,7 +367,7 @@ def extract_docstring(filename):
 
     docstring = ''
     first_par = ''
-    tokens = tokenize.generate_tokens(iter(lines).next)
+    tokens = tokenize.generate_tokens(iter(lines).__next__)
     for tok_type, tok_content, _, (erow, _), _ in tokens:
         tok_type = token.tok_name[tok_type]
         if tok_type in ('NEWLINE', 'COMMENT', 'NL', 'INDENT', 'DEDENT'):
@@ -463,7 +464,7 @@ def extract_line_count(filename, target_dir):
     if lines[0].startswith('#!'):
         lines.pop(0)
         start_row = 1
-    tokens = tokenize.generate_tokens(lines.__iter__().next)
+    tokens = tokenize.generate_tokens(lines.__iter__().__next__)
     check_docstring = True
     erow_docstring = 0
     for tok_type, _, _, (erow, _), _ in tokens:
@@ -477,7 +478,7 @@ def extract_line_count(filename, target_dir):
 
 def line_count_sort(file_list, target_dir):
     # Sort the list of examples by line-count
-    new_list = filter(lambda x: x.endswith('.py'), file_list)
+    new_list = [x for x in file_list if x.endswith('.py')]
     unsorted = np.zeros(shape=(len(new_list), 2))
     unsorted = unsorted.astype(np.object)
     for count, exmpl in enumerate(new_list):
@@ -498,11 +499,11 @@ def generate_dir_rst(dir, fhindex, example_dir, root_dir, plot_gallery):
         target_dir = root_dir
         src_dir = example_dir
     if not os.path.exists(os.path.join(src_dir, 'README.txt')):
-        print 80 * '_'
-        print ('Example directory %s does not have a README.txt file'
-                        % src_dir)
-        print 'Skipping this directory'
-        print 80 * '_'
+        print(80 * '_')
+        print(('Example directory %s does not have a README.txt file'
+                        % src_dir))
+        print('Skipping this directory')
+        print(80 * '_')
         return
     fhindex.write("""
 
@@ -654,7 +655,7 @@ def generate_file_rst(fname, target_dir, src_dir, plot_gallery):
                 os.stat(first_image_file).st_mtime <=
                                     os.stat(src_file).st_mtime):
             # We need to execute the code
-            print 'plotting %s' % fname
+            print('plotting %s' % fname)
             t0 = time()
             import matplotlib.pyplot as plt
             plt.close('all')
@@ -668,17 +669,17 @@ def generate_file_rst(fname, target_dir, src_dir, plot_gallery):
                 my_stdout = Tee(sys.stdout, my_buffer)
                 sys.stdout = my_stdout
                 my_globals = {'pl': plt}
-                execfile(os.path.basename(src_file), my_globals)
+                exec(compile(open(os.path.basename(src_file)).read(), os.path.basename(src_file), 'exec'), my_globals)
                 time_elapsed = time() - t0
                 sys.stdout = orig_stdout
                 my_stdout = my_buffer.getvalue()
 
                 # get variables so we can later add links to the documentation
                 example_code_obj = {}
-                for var_name, var in my_globals.iteritems():
+                for var_name, var in my_globals.items():
                     if not hasattr(var, '__module__'):
                         continue
-                    if not isinstance(var.__module__, basestring):
+                    if not isinstance(var.__module__, str):
                         continue
                     if var.__module__.split('.')[0] not in DOCMODULES:
                         continue
@@ -710,11 +711,11 @@ def generate_file_rst(fname, target_dir, src_dir, plot_gallery):
                                 #print err
                                 continue
                             this_fun = my_globals['this_fun']
-                            if not callable(this_fun):
+                            if not isinstance(this_fun, collections.Callable):
                                 continue
                             if not hasattr(this_fun, '__module__'):
                                 continue
-                            if not isinstance(this_fun.__module__, basestring):
+                            if not isinstance(this_fun.__module__, str):
                                 continue
                             if (this_fun.__module__.split('.')[0]
                                     not in DOCMODULES):
@@ -735,8 +736,8 @@ def generate_file_rst(fname, target_dir, src_dir, plot_gallery):
                     # save the dictionary, so we can later add hyperlinks
                     codeobj_fname = example_file[:-3] + '_codeobj.pickle'
                     with open(codeobj_fname, 'wb') as fid:
-                        cPickle.dump(example_code_obj, fid,
-                                     cPickle.HIGHEST_PROTOCOL)
+                        pickle.dump(example_code_obj, fid,
+                                     pickle.HIGHEST_PROTOCOL)
                     fid.close()
 
                 if '__doc__' in my_globals:
@@ -767,15 +768,15 @@ def generate_file_rst(fname, target_dir, src_dir, plot_gallery):
                     plt.savefig(image_path % fig_num)
                     figure_list.append(image_fname % fig_num)
             except:
-                print 80 * '_'
-                print '%s is not compiling:' % fname
+                print(80 * '_')
+                print('%s is not compiling:' % fname)
                 traceback.print_exc()
-                print 80 * '_'
+                print(80 * '_')
             finally:
                 os.chdir(cwd)
                 sys.stdout = orig_stdout
 
-            print " - time elapsed : %.2g sec" % time_elapsed
+            print(" - time elapsed : %.2g sec" % time_elapsed)
         else:
             figure_list = [f[len(image_dir):]
                             for f in glob.glob(image_path % '[1-9]')]
@@ -812,7 +813,7 @@ def embed_code_links(app, exception):
     try:
         if exception is not None:
             return
-        print 'Embedding documentation hyperlinks in examples..'
+        print('Embedding documentation hyperlinks in examples..')
 
         # Add resolvers for the packages for which we want to show links
         doc_resolvers = {}
@@ -839,7 +840,7 @@ def embed_code_links(app, exception):
 
         for dirpath, _, filenames in os.walk(html_example_dir):
             for fname in filenames:
-                print '\tprocessing: %s' % fname
+                print('\tprocessing: %s' % fname)
                 full_fname = os.path.join(html_example_dir, dirpath, fname)
                 subpath = dirpath[len(html_example_dir) + 1:]
                 pickle_fname = os.path.join(example_dir, subpath,
@@ -848,11 +849,11 @@ def embed_code_links(app, exception):
                 if os.path.exists(pickle_fname):
                     # we have a pickle file with the objects to embed links for
                     with open(pickle_fname, 'rb') as fid:
-                        example_code_obj = cPickle.load(fid)
+                        example_code_obj = pickle.load(fid)
                     fid.close()
                     str_repl = {}
                     # generate replacement strings with the links
-                    for name, cobj in example_code_obj.iteritems():
+                    for name, cobj in example_code_obj.items():
                         this_module = cobj['module'].split('.')[0]
 
                         if this_module not in doc_resolvers:
@@ -873,20 +874,20 @@ def embed_code_links(app, exception):
                         fid.close()
                         with open(full_fname, 'wt') as fid:
                             for line in lines_in:
-                                for name, link in str_repl.iteritems():
+                                for name, link in str_repl.items():
                                     line = line.replace(name, link)
                                 fid.write(line)
                         fid.close()
-    except urllib2.HTTPError, e:
+    except urllib.error.HTTPError as e:
         print ("The following HTTP Error has occurred:\n")
-        print e.code
-    except urllib2.URLError, e:
+        print(e.code)
+    except urllib.error.URLError as e:
         print ("\n...\n"
                "Warning: Embedding the documentation hyperlinks requires "
                "internet access.\nPlease check your network connection.\n"
                "Unable to continue embedding due to a URL Error: \n")
-        print e.args
-    print '[done]'
+        print(e.args)
+    print('[done]')
 
 
 def setup(app):

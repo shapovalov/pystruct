@@ -60,7 +60,7 @@ def test_multilabel_fully():
     # test inference and energy with fully connected model
     n_features = 5
     n_labels = 4
-    edges = np.vstack([x for x in itertools.combinations(range(n_labels), 2)])
+    edges = np.vstack([x for x in itertools.combinations(list(range(n_labels)), 2)])
     model = MultiLabelClf(n_labels=n_labels, n_features=n_features,
                             edges=edges)
     rnd = np.random.RandomState(0)

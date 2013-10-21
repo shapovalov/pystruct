@@ -19,7 +19,7 @@ inference_method = get_installed(["qpbo", "ad3", "lp"])[0]
 def test_multinomial_blocks_one_slack():
     #testing cutting plane ssvm on easy multinomial dataset
     X, Y = generate_blocks_multinomial(n_samples=10, noise=0.5, seed=0)
-    print(np.argmax(X[0], axis=-1))
+    print((np.argmax(X[0], axis=-1)))
     n_labels = len(np.unique(Y))
     crf = GridCRF(n_states=n_labels, inference_method=inference_method)
     clf = OneSlackSSVM(model=crf, max_iter=150, C=1,
@@ -81,7 +81,7 @@ def test_constraint_removal():
 def test_binary_blocks_one_slack_graph():
     #testing cutting plane ssvm on easy binary dataset
     # generate graphs explicitly for each example
-    print("testing %s" % inference_method)
+    print(("testing %s" % inference_method))
     X, Y = generate_blocks(n_samples=3)
     crf = GraphCRF(inference_method=inference_method)
     clf = OneSlackSSVM(model=crf, max_iter=100, C=1,
@@ -101,7 +101,7 @@ def test_binary_blocks_one_slack_graph():
     X_ = [x.reshape(-1, n_states) for x in X_]
     Y = [y.ravel() for y in [y1, y2, y3]]
 
-    X = zip(X_, G)
+    X = list(zip(X_, G))
 
     clf.fit(X, Y)
     Y_pred = clf.predict(X)
@@ -117,18 +117,18 @@ def test_one_slack_constraint_caching():
     crf = GridCRF(n_states=n_labels, inference_method='lp')
     clf = OneSlackSSVM(model=crf, max_iter=150, C=1,
                        check_constraints=True, break_on_bad=True,
-                       inference_cache=50, inactive_window=0)
+                       inference_cache=50, inactive_window=0, verbose=10)
     clf.fit(X, Y)
     Y_pred = clf.predict(X)
     assert_array_equal(Y, Y_pred)
     assert_equal(len(clf.inference_cache_), len(X))
-    # there should be 21 constraints, which are less than the 94 iterations
+    # there should be 11 constraints, which are less than the 94 iterations
     # that are done
-    assert_equal(len(clf.inference_cache_[0]), 21)
+    assert_equal(len(clf.inference_cache_[0]), 11)
     # check that we didn't change the behavior of how we construct the cache
     constraints_per_sample = [len(cache) for cache in clf.inference_cache_]
-    assert_equal(np.max(constraints_per_sample), 21)
-    assert_equal(np.min(constraints_per_sample), 21)
+    assert_equal(np.max(constraints_per_sample), 19)
+    assert_equal(np.min(constraints_per_sample), 11)
 
 
 def test_one_slack_attractive_potentials():
@@ -188,4 +188,4 @@ def test_switch_to_ad3():
     # as it might use the relaxation, that is pretty much guraranteed
     assert_greater(ssvm_with_switch.objective_curve_[-1],
                    ssvm.objective_curve_[-1])
-    print(ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1])
+    print((ssvm_with_switch.objective_curve_[-1], ssvm.objective_curve_[-1]))
