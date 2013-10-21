@@ -55,19 +55,24 @@ class SlaveBSP:
             un_str, pw_str, lab_str, *tmp = line[1].split(";")
             
             un_feat = np.genfromtxt(io.BytesIO(un_str.replace(",","\n").encode()))
+            #peer.log("Unary shape: %s" % str(un_feat.shape))
             pw_feat = np.genfromtxt(io.BytesIO(pw_str.replace(",","\n").encode()))
-            lab_feat = np.genfromtxt(io.BytesIO(lab_str.replace(",","\n").encode()))
+            #peer.log("Pairwise shape: %s" % str(pw_feat.shape))
+            lab = np.genfromtxt(io.BytesIO(lab_str.replace(",","\n").encode()))
+            #peer.log("Labels shape: %s" % str(lab.shape))
             
             img_num = un_feat[0,0]
-            assert(np.any(un_feat[:,0] == img_num))
-            assert(np.any(pw_feat[:,0] == img_num))
-            assert(np.any(lab_feat[:,0] == img_num))
+            assert(np.all(un_feat[:,0] == img_num))
+            assert(np.all(pw_feat[:,0] == img_num))
+            assert(np.all(lab[:,0] == img_num))
             
             self.imgnums.append(img_num)
-            self.X.append((un_feat[:,2:],pw_feat[:,1:3],pw_feat[:,3:]))
-            self.Y.append(lab_feat[:,2])
-            self.Psi_gt.append(self.model.batch_psi(X[-1], Y[-1], 
-                Y[-1] if getattr(self.model, 'rescale_C', False) else None))
+            self.X.append((un_feat[:,2:],pw_feat[:,1:3].astype(int)-1,pw_feat[:,3:]))
+            self.Y.append(lab[:,2].astype(int)-1)
+            #TEMP
+            #peer.log("Unary shape: %s" % str(self.X[-1][0].shape))
+            self.Psi_gt.append(self.model.psi(self.X[-1], self.Y[-1], 
+                self.Y[-1] if getattr(self.model, 'rescale_C', False) else None))
             peer.log("Object %d processed!" % img_num)
             
         self.sum_psi_gt = sum(self.Psi_gt) 
@@ -86,9 +91,9 @@ class SlaveBSP:
         if not msg:
             return False
 
-        w = np.array([int(elem) for elem in msg.split()])
+        w = np.array([float(elem) for elem in msg.split()])
         
-        Y_hat = self.model.batch_loss_augmented_inference(X, Y, w, relaxed=False)
+        Y_hat = self.model.batch_loss_augmented_inference(self.X, self.Y, w, relaxed=False)
         
         Dpsi = [psi_gt - 
                 self.model.batch_psi(x, y_hat, 

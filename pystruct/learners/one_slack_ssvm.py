@@ -157,6 +157,7 @@ class OneSlackSSVM(BaseSSVM):
         
         from MasterSlaveBSP import SlaveBSP  # just to test
         self.squire = SlaveBSP(self.peer.config.get("master.index"))
+        self.squire.setup(self.peer)
         
     # override
     def _objective(self):
@@ -373,18 +374,18 @@ class OneSlackSSVM(BaseSSVM):
           self.peer.send(peerName, str(" ".join(str(i) for i in self.w))) 
           
         if self.squire is not None:  
-            gotMsg = self.squire.superstep(peer)
+            gotMsg = self.squire.superstep(self.peer)
             assert(gotMsg)
         else:
-            peer.sync()
-            peer.sync()
+            self.peer.sync()
+            self.peer.sync()
 
         Y_hat = []
         Dpsi = []
         Loss = []
         sum_dpsi = np.zeros(self.model.size_psi)
         sum_loss = 0.0
-        for msg in peer.getAllMessages():
+        for msg in self.peer.getAllMessages():
             #peer.log("master got msg: %s" % msg)
             msgs = msg.split(";")
             assert(len(msgs) == 5)
@@ -397,7 +398,7 @@ class OneSlackSSVM(BaseSSVM):
             Loss += np.array([float(elem) for elem in msgs[3].split()])
             sum_loss += float(msgs[4])
 
-        peer.sync() # to let slaves get empty msg
+        self.peer.sync() # to let slaves get empty msg
         
         # compute the mean over psis and losses
 
@@ -563,6 +564,8 @@ class OneSlackSSVM(BaseSSVM):
         self.primal_objective_curve_.append(primal_objective)
         self.objective_curve_.append(objective)
         self.cached_constraint_.append(False)
+
+        self.squire.cleanup(self.peer)
 
         if self.logger is not None:
             self.logger(self, 'final')
