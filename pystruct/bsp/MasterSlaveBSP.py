@@ -38,6 +38,7 @@ class SlaveBSP:
     def setup(self, peer):
         self.X = []
         self.Y = []
+        self.Psi_gt = []
         self.imgnums = []
         
         module = peer.config.get("model.factory.module")
@@ -65,7 +66,11 @@ class SlaveBSP:
             self.imgnums.append(img_num)
             self.X.append((un_feat[:,2:],pw_feat[:,1:3],pw_feat[:,3:]))
             self.Y.append(lab_feat[:,2])
+            self.Psi_gt.append(self.model.batch_psi(X[-1], Y[-1], 
+                Y[-1] if getattr(self.model, 'rescale_C', False) else None))
             peer.log("Object %d processed!" % img_num)
+            
+        self.sum_psi_gt = sum(self.Psi_gt) 
                 
 
     def bsp(self, peer):
@@ -84,14 +89,22 @@ class SlaveBSP:
         w = np.array([int(elem) for elem in msg.split()])
         
         Y_hat = self.model.batch_loss_augmented_inference(X, Y, w, relaxed=False)
-        sum_psi = self.model.batch_psi(X, Y_hat, 
-            Y if getattr(self.model, 'rescale_C', False) else None)
-
-        sum_loss = np.sum(self.model.batch_loss(Y, Y_hat))
         
+        Dpsi = [psi_gt - 
+                self.model.batch_psi(x, y_hat, 
+                    y if getattr(self.model, 'rescale_C', False) else None)
+            for x, y_hat, y, psi_gt in zip(self.X, self.Y_hat, self.Y, self.Psi_gt)]
+        sum_dpsi = sum(Dpsi)
+
+        Loss = [self.model.loss(y, y_hat) for y, y_hat in zip(Y, Y_hat)]
+        sum_loss = sum(Loss)
+        
+        # there is some redundancy here, but it moves some computation to slaves
         peer.send(peer.getPeerNameForIndex(self.master_id), 
                 ",".join(" ".join(str(i) for i in y_hat) for y_hat in Y_hat) + ";" + 
-                " ".join(str(i) for i in sum_psi) + ";" + str(sum_loss))
+                ",".join(" ".join(str(i) for i in dpsi) for dpsi in Dpsi) + ";" + 
+                " ".join(str(i) for i in dpsi) + ";" + 
+                " ".join(str(i) for i in Loss) + ";" + str(sum_loss))
         peer.sync()
         
         return True
