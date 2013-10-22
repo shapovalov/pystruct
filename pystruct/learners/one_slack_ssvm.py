@@ -188,15 +188,19 @@ class OneSlackSSVM(BaseSSVM):
         #else:
             #initvals = {}
         #solution = cvxopt.solvers.qp(P, q, G, h, A, b, initvals=initvals)
+
+        import mosek
+        cvxopt.solvers.options['MOSEK'] = {mosek.iparam.log: 0}
+
         try:
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b)
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b, solver='mosek')
         except ValueError:
             solution = {'status': 'error'}
         if solution['status'] != "optimal":
             print("regularizing QP!")
             P = cvxopt.matrix(np.dot(psi_matrix, psi_matrix.T)
                               + 1e-8 * np.eye(psi_matrix.shape[0]))
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b)
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b, solver='mosek')
             if solution['status'] != "optimal":
                 raise ValueError("QP solver failed. Try regularizing your QP.")
 
