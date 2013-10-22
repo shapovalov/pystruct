@@ -161,7 +161,7 @@ class OneSlackSSVM(BaseSSVM):
         
     # override
     def _objective(self):
-        _, _, _, Dpsi, Loss = _find_new_constraint(self, constraints=[], check=False)
+        _, _, _, Dpsi, Loss = self._find_new_constraint(constraints=[], check=False)
         slacks = [max(loss - np.dot(self.w, dpsi), 0) for loss,dpsi in zip(Loss, Dpsi)]
         objective = sum(slacks) * self.C + np.sum(self.w ** 2) / 2.
             
@@ -338,7 +338,7 @@ class OneSlackSSVM(BaseSSVM):
             raise NoConstraint
 
         Y_hat = []
-        psi_acc = np.zeros(self.model.size_psi)
+        dpsi_acc = np.zeros(self.model.size_psi)
         loss_mean = 0
         for cached in self.inference_cache_:
             # cached has entries of form (psi, loss, y_hat)
@@ -349,7 +349,7 @@ class OneSlackSSVM(BaseSSVM):
             dpsi_acc += dpsi
             loss_mean += loss
 
-        dpsi = psi_acc / self.n_ex
+        dpsi = dpsi_acc / self.n_ex
         loss_mean = loss_mean / self.n_ex
 
         violation = loss_mean - np.dot(self.w, dpsi)
@@ -390,10 +390,10 @@ class OneSlackSSVM(BaseSSVM):
             Dpsi += [np.array([float(elem) for elem in y_hat.split()]) 
                 for y_hat in msgs[1].split(",")]
             sum_dpsi += np.array([float(elem) for elem in msgs[2].split()])
-            Loss += np.array([float(elem) for elem in msgs[3].split()])
+            Loss += [float(elem) for elem in msgs[3].split()]
             sum_loss += float(msgs[4])
 
-        self.peer.sync() # to let slaves get empty msg
+        #self.peer.sync() # to let slaves get empty msg
         
         # compute the mean over psis and losses
 
@@ -559,6 +559,8 @@ class OneSlackSSVM(BaseSSVM):
         self.primal_objective_curve_.append(primal_objective)
         self.objective_curve_.append(objective)
         self.cached_constraint_.append(False)
+
+        self.peer.sync() # to let slaves get empty msg
 
         self.squire.cleanup(self.peer)
 

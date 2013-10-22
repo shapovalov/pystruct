@@ -96,19 +96,19 @@ class SlaveBSP:
         Y_hat = self.model.batch_loss_augmented_inference(self.X, self.Y, w, relaxed=False)
         
         Dpsi = [psi_gt - 
-                self.model.batch_psi(x, y_hat, 
+                self.model.psi(x, y_hat, 
                     y if getattr(self.model, 'rescale_C', False) else None)
-            for x, y_hat, y, psi_gt in zip(self.X, self.Y_hat, self.Y, self.Psi_gt)]
+            for x, y_hat, y, psi_gt in zip(self.X, Y_hat, self.Y, self.Psi_gt)]
         sum_dpsi = sum(Dpsi)
 
-        Loss = [self.model.loss(y, y_hat) for y, y_hat in zip(Y, Y_hat)]
+        Loss = [self.model.loss(y, y_hat) for y, y_hat in zip(self.Y, Y_hat)]
         sum_loss = sum(Loss)
         
         # there is some redundancy here, but it moves some computation to slaves
         peer.send(peer.getPeerNameForIndex(self.master_id), 
                 ",".join(" ".join(str(i) for i in y_hat) for y_hat in Y_hat) + ";" + 
                 ",".join(" ".join(str(i) for i in dpsi) for dpsi in Dpsi) + ";" + 
-                " ".join(str(i) for i in dpsi) + ";" + 
+                " ".join(str(i) for i in sum_dpsi) + ";" + 
                 " ".join(str(i) for i in Loss) + ";" + str(sum_loss))
         peer.sync()
         
@@ -129,5 +129,4 @@ class MasterBSP:
         #peer.write(result, "")
         
     def cleanup(self, peer):
-        if self.squire is not None:
-            self.squire.cleanup(peer)
+        pass
