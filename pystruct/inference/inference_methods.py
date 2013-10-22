@@ -283,7 +283,7 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
     pairwise_potentials = (1000 * pairwise_potentials).copy().astype(np.int32)
 
     pairwise_cost = {}
-    for i in xrange(0, pairwise_potentials.shape[0]):
+    for i in range(0, pairwise_potentials.shape[0]):
         cost = pairwise_potentials[i, 0, 0]
         if cost >= 0:
             pairwise_cost[(edges[i, 0], edges[i, 1])] = cost
