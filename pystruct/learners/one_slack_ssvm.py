@@ -167,10 +167,6 @@ class OneSlackSSVM(BaseSSVM):
             
         return objective
         
-    # override
-    def predict(self):
-        
-
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it
         psis = [c[0] for c in constraints]
