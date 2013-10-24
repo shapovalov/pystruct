@@ -155,8 +155,8 @@ class OneSlackSSVM(BaseSSVM):
         
         self.n_ex = 100 # TEMP TODO: set this from configs or request from peers
         
-        from MasterSlaveBSP import SlaveBSP  # just to test
-        self.squire = SlaveBSP(self.peer.config.get("master.index"))
+        from MasterSlaveBSP import SlaveBSPTrain  # just to test
+        self.squire = SlaveBSPTrain(self.peer.config.get("master.index"))
         self.squire.setup(self.peer)
         
     # override
@@ -166,6 +166,10 @@ class OneSlackSSVM(BaseSSVM):
         objective = sum(slacks) * self.C + np.sum(self.w ** 2) / 2.
             
         return objective
+        
+    # override
+    def predict(self):
+        
 
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it

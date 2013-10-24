@@ -7,11 +7,15 @@ import io
 class MasterSlaveBSP(BSP):
     def setup(self, peer):
         self.master_index = peer.config.get("master.index")
+        train = peer.config.get("mode") == "train"
 
         if peer.getPeerIndex() == self.master_index:
             self.impl = MasterBSP()
         else:
-            self.impl = SlaveBSP(self.master_index)
+            if train:
+              self.impl = SlaveBSPTrain(self.master_index)
+            else:
+              self.impl = SlaveBSPTest(self.master_index)
 
         try:
             self.impl.setup(peer)
@@ -38,6 +42,7 @@ class SlaveBSP:
     def setup(self, peer):
         self.X = []
         self.Y = []
+        self.Y_areas = []
         self.Psi_gt = []
         self.imgnums = []
         
@@ -69,22 +74,28 @@ class SlaveBSP:
             self.imgnums.append(img_num)
             self.X.append((un_feat[:,2:],pw_feat[:,1:3].astype(int)-1,pw_feat[:,3:]))
             self.Y.append(lab[:,2].astype(int)-1)
-            #TEMP
-            #peer.log("Unary shape: %s" % str(self.X[-1][0].shape))
-            self.Psi_gt.append(self.model.psi(self.X[-1], self.Y[-1], 
-                self.Y[-1] if getattr(self.model, 'rescale_C', False) else None))
+            
+            if peer.config.get("mode") != "train":   # this should be done in a subclass
+                self.Y_areas.append(lab[:,2])  # For MSRC format, use lab[:,3:] for areas
+
+            if peer.config.get("mode") == "train":   # this should be done in a subclass
+                self.Psi_gt.append(self.model.psi(self.X[-1], self.Y[-1], 
+                    self.Y[-1] if getattr(self.model, 'rescale_C', False) else None))
             peer.log("Object %d processed!" % img_num)
             
         self.sum_psi_gt = sum(self.Psi_gt) 
                 
 
-    def bsp(self, peer):
-        while self.superstep(peer):
-            pass
-
     def cleanup(self, peer):
         pass
 
+        
+
+class SlaveBSPTrain(SlaveBSP):
+    def bsp(self, peer):
+        while self.superstep(peer):
+            pass
+            
     def superstep(self, peer):
         peer.sync()
         msg = peer.getCurrentMessage()
@@ -113,6 +124,24 @@ class SlaveBSP:
         peer.sync()
         
         return True
+            
+            
+class SlaveBSPTest(SlaveBSP):
+    def bsp(self, peer):
+        peer.sync()
+        msg = peer.getCurrentMessage()
+        assert(msg)
+        
+        w = np.array([float(elem) for elem in msg.split()])
+        
+        Y_hat = self.model.batch_inference(self.X, w, relaxed=False)
+        
+        peer.send(peer.getPeerNameForIndex(self.master_id), 
+                ",".join(" ".join(str(i) for i in y_hat) for y_hat in Y_hat) + ";" + 
+                #",".join(" ".join(str(i) for i in y_areas.reshape(1, -1)) for y_areas in Y_areas))
+                ",".join(" ".join(str(i) for i in y_areas) for y_areas in Y_areas))
+        peer.sync()
+        
         
         
 class MasterBSP:
