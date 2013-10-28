@@ -143,6 +143,8 @@ class OneSlackSSVM(BaseSSVM):
         self.inactive_threshold = inactive_threshold
         self.inactive_window = inactive_window
         self.switch_to = switch_to
+        self.qp_time = 0
+        self.inference_time = 0
 
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it
@@ -192,17 +194,19 @@ class OneSlackSSVM(BaseSSVM):
         import mosek
         cvxopt.solvers.options['MOSEK'] = {mosek.iparam.log: 0}
 
+        start_time = time()
         try:
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b, solver='mosek')
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b)#, solver='mosek')
         except ValueError:
             solution = {'status': 'error'}
         if solution['status'] != "optimal":
             print("regularizing QP!")
             P = cvxopt.matrix(np.dot(psi_matrix, psi_matrix.T)
                               + 1e-8 * np.eye(psi_matrix.shape[0]))
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b, solver='mosek')
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b)#, solver='mosek')
             if solution['status'] != "optimal":
                 raise ValueError("QP solver failed. Try regularizing your QP.")
+        self.qp_time += time() - start_time
 
         # Lagrange multipliers
         a = np.ravel(solution['x'])
@@ -339,6 +343,7 @@ class OneSlackSSVM(BaseSSVM):
         return Y_hat, dpsi, loss_mean
 
     def _find_new_constraint(self, X, Y, psi_gt, constraints, check=True):
+        start_time = time()
         if self.n_jobs != 1:
             # do inference in parallel
             verbose = max(0, self.verbose - 3)
@@ -349,6 +354,7 @@ class OneSlackSSVM(BaseSSVM):
         else:
             Y_hat = self.model.batch_loss_augmented_inference(
                 X, Y, self.w, relaxed=True)
+        self.inference_time += time() - start_time
         # compute the mean over psis and losses
 
         if getattr(self.model, 'rescale_C', False):
