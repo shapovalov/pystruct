@@ -290,7 +290,11 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
 
     unary_potentials = (-1000 * unary_potentials).copy().astype(np.int32)
 
-    y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost, n_iter=kwargs['n_iter'])
+    if 'n_iter' in kwargs:
+        y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost, n_iter=kwargs['n_iter'])
+    else:
+        y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost)
+
     return y[0].reshape(shape_org)
 
 
