@@ -427,6 +427,9 @@ class OneSlackSSVM(BaseSSVM):
         else:
             constraints = self.constraints_
 
+        self.qp_time = 0
+        self.inference_time = 0
+
         self.last_slack_ = -1
 
         # get the psi of the ground truth
