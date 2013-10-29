@@ -347,7 +347,7 @@ class OneSlackSSVM(BaseSSVM):
         if self.n_jobs != 1:
             # do inference in parallel
             verbose = max(0, self.verbose - 3)
-            Y_hat = Parallel(n_jobs=self.n_jobs, verbose=verbose)(
+            Y_hat = Parallel(n_jobs=self.n_jobs, verbose=verbose, max_nbytes=1e8)(
                 delayed(loss_augmented_inference)(
                     self.model, x, y, self.w, relaxed=True)
                 for x, y in zip(X, Y))
