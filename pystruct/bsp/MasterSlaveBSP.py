@@ -76,7 +76,7 @@ class SlaveBSP:
             self.Y.append(lab[:,2].astype(int)-1)
             
             if peer.config.get("mode") != "train":   # this should be done in a subclass
-                self.Y_areas.append(lab[:,2])  # For MSRC format, use lab[:,3:] for areas
+                self.Y_areas.append(lab[:,2].astype(int)-1)  # For MSRC format, use lab[:,3:] for areas
 
             if peer.config.get("mode") == "train":   # this should be done in a subclass
                 self.Psi_gt.append(self.model.psi(self.X[-1], self.Y[-1], 
@@ -139,7 +139,7 @@ class SlaveBSPTest(SlaveBSP):
         peer.send(peer.getPeerNameForIndex(self.master_id), 
                 ",".join(" ".join(str(i) for i in y_hat) for y_hat in Y_hat) + ";" + 
                 #",".join(" ".join(str(i) for i in y_areas.reshape(1, -1)) for y_areas in Y_areas))
-                ",".join(" ".join(str(i) for i in y_areas) for y_areas in Y_areas))
+                ",".join(" ".join(str(i) for i in y_areas) for y_areas in self.Y_areas))
         peer.sync()
         
         
