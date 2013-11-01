@@ -313,7 +313,8 @@ class OneSlackSSVM(BaseSSVM):
             self.inference_cache_ = [[] for y in Y_hat]
 
         for sample, y_hat, dpsi, loss in zip(self.inference_cache_, Y_hat, Dpsi, Loss):
-            already_there = [y_hat == cache[2] for cache in sample]
+            already_there = [np.all(y_hat == cache[2]) for cache in sample]
+            # TODO: works only for non-relaxed!
 
             if np.any(already_there):
                 continue
