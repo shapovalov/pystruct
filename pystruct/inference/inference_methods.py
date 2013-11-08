@@ -294,6 +294,7 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
         y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost, n_iter=kwargs['n_iter'])
     else:
         y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost)
+
     return y[0].reshape(shape_org)
 
 

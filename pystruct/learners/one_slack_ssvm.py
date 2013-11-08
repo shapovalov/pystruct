@@ -152,7 +152,9 @@ class OneSlackSSVM(BaseSSVM):
         self.inactive_threshold = inactive_threshold
         self.inactive_window = inactive_window
         self.switch_to = switch_to
-        
+        self.qp_time = 0
+        self.inference_time = 0
+
         self.n_ex = 100 # TEMP TODO: set this from configs or request from peers
         
         from MasterSlaveBSP import SlaveBSPTrain  # just to test
@@ -166,7 +168,7 @@ class OneSlackSSVM(BaseSSVM):
         objective = sum(slacks) * self.C + np.sum(self.w ** 2) / 2.
             
         return objective
-        
+
     def _solve_1_slack_qp(self, constraints, n_samples):
         C = np.float(self.C) * n_samples  # this is how libsvm/svmstruct do it
         psis = [c[0] for c in constraints]
@@ -211,17 +213,23 @@ class OneSlackSSVM(BaseSSVM):
         #else:
             #initvals = {}
         #solution = cvxopt.solvers.qp(P, q, G, h, A, b, initvals=initvals)
+
+        import mosek
+        cvxopt.solvers.options['MOSEK'] = {mosek.iparam.log: 0}
+
+        start_time = time()
         try:
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b)
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b)#, solver='mosek')
         except ValueError:
             solution = {'status': 'error'}
         if solution['status'] != "optimal":
             self.peer.log("regularizing QP!")
             P = cvxopt.matrix(np.dot(psi_matrix, psi_matrix.T)
                               + 1e-8 * np.eye(psi_matrix.shape[0]))
-            solution = cvxopt.solvers.qp(P, q, G, h, A, b)
+            solution = cvxopt.solvers.qp(P, q, G, h, A, b)#, solver='mosek')
             if solution['status'] != "optimal":
                 raise ValueError("QP solver failed. Try regularizing your QP.")
+        self.qp_time += time() - start_time
 
         # Lagrange multipliers
         a = np.ravel(solution['x'])
@@ -366,6 +374,7 @@ class OneSlackSSVM(BaseSSVM):
         #    Y_hat = self.model.batch_loss_augmented_inference(
         #        X, Y, self.w, relaxed=True)
                 
+        start_time = time()
         for peerName in self.peer.getAllPeerNames():
           self.peer.send(peerName, str(" ".join(str(i) for i in self.w))) 
           
@@ -394,6 +403,7 @@ class OneSlackSSVM(BaseSSVM):
             Loss += [float(elem) for elem in msgs[3].split()]
             sum_loss += float(msgs[4])
 
+        self.inference_time += time() - start_time
         #self.peer.sync() # to let slaves get empty msg
         
         # compute the mean over psis and losses
@@ -469,6 +479,9 @@ class OneSlackSSVM(BaseSSVM):
 
         else:
             constraints = self.constraints_
+
+        self.qp_time = 0
+        self.inference_time = 0
 
         self.last_slack_ = -1
 
