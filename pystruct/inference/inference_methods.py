@@ -103,7 +103,7 @@ def inference_dispatch(unary_potentials, pairwise_potentials, edges,
         inference_method = inference_method[0]
         # append additional_kwargs, but take care not to modify the dicts we
         # got
-        kwargs = dict(kwargs.items() + additional_kwargs.items())
+        kwargs = dict(list(kwargs.items()) + list(additional_kwargs.items()))
     if inference_method == "qpbo":
         return inference_qpbo(unary_potentials, pairwise_potentials, edges,
                               **kwargs)
@@ -283,7 +283,7 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
     pairwise_potentials = (1000 * pairwise_potentials).copy().astype(np.int32)
 
     pairwise_cost = {}
-    for i in xrange(0, pairwise_potentials.shape[0]):
+    for i in range(0, pairwise_potentials.shape[0]):
         cost = pairwise_potentials[i, 0, 0]
         if cost >= 0:
             pairwise_cost[(edges[i, 0], edges[i, 1])] = cost
@@ -474,7 +474,7 @@ def inference_ad3(unary_potentials, pairwise_potentials, edges, relaxed=False,
                             n_iterations=4000, exact=branch_and_bound)
     unary_marginals, pairwise_marginals, energy, solver_status = res
     if verbose:
-        print solver_status[0],
+        print(solver_status[0], end=' ')
 
     if solver_status in ["fractional", "unsolved"] and relaxed:
         unary_marginals = unary_marginals.reshape(unary_potentials.shape)

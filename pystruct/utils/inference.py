@@ -130,7 +130,7 @@ def exhaustive_loss_augmented_inference(model, x, y, w):
     size = y.size
     best_y = None
     best_energy = np.inf
-    for y_hat in itertools.product(range(model.n_states), repeat=size):
+    for y_hat in itertools.product(list(range(model.n_states)), repeat=size):
         y_hat = np.array(y_hat).reshape(y.shape)
         #print("trying %s" % repr(y_hat))
         psi = model.psi(x, y_hat)
@@ -150,7 +150,7 @@ def exhaustive_inference(model, x, w):
     size = np.prod(feats.shape[:-1])
     best_y = None
     best_energy = np.inf
-    for y_hat in itertools.product(range(model.n_states), repeat=size):
+    for y_hat in itertools.product(list(range(model.n_states)), repeat=size):
         y_hat = np.array(y_hat).reshape(feats.shape[:-1])
         #print("trying %s" % repr(y_hat))
         psi = model.psi(x, y_hat)

@@ -1,4 +1,4 @@
-import cPickle
+import pickle
 from os.path import dirname
 from os.path import join
 
@@ -15,7 +15,7 @@ def load_letters():
     """
     module_path = dirname(__file__)
     data_file = open(join(module_path, 'letters.pickle'),'rb')
-    data = cPickle.load(data_file)
+    data = pickle.load(data_file)
     # we add an easy to use image representation:
     data['images'] = [np.hstack([l.reshape(16, 8) for l in word])
                       for word in data['data']]
@@ -25,10 +25,10 @@ def load_letters():
 def load_scene():
     module_path = dirname(__file__)
     data_file = open(join(module_path, 'scene.pickle'),'rb')
-    return cPickle.load(data_file)
+    return pickle.load(data_file)
 
 
 def load_snakes():
     module_path = dirname(__file__)
     data_file = open(join(module_path, 'snakes.pickle'),'rb')
-    return cPickle.load(data_file)
+    return pickle.load(data_file)

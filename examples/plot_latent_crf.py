@@ -31,8 +31,8 @@ base_ssvm = OneSlackSSVM(model=crf, C=10., n_jobs=-1, inference_cache=20,
                          tol=.1)
 clf = LatentSSVM(base_ssvm=base_ssvm)
 clf.fit(X_train, Y_train)
-print("loss training set: %f" % clf.score(X_train, Y_train))
-print("loss test set: %f" % clf.score(X_test, Y_test))
+print(("loss training set: %f" % clf.score(X_train, Y_train)))
+print(("loss test set: %f" % clf.score(X_test, Y_test)))
 
 Y_pred = clf.predict(X_test)
 

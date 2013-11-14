@@ -33,5 +33,5 @@ start = time()
 svm.fit(X_train, y_train)
 time_svm = time() - start
 y_pred = np.vstack(svm.predict(X_test))
-print("Score with pystruct crf svm: %f (took %f seconds)"
-      % (np.mean(y_pred == y_test), time_svm))
+print(("Score with pystruct crf svm: %f (took %f seconds)"
+      % (np.mean(y_pred == y_test), time_svm)))

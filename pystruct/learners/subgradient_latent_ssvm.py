@@ -137,7 +137,7 @@ class SubgradientLatentSSVM(SubgradientSSVM):
         n_samples = len(X)
         try:
             # catch ctrl+c to stop training
-            for iteration in xrange(self.max_iter):
+            for iteration in range(self.max_iter):
                 self.timestamps_.append(time() - self.timestamps_[0])
                 positive_slacks = 0
                 objective = 0.
@@ -198,14 +198,14 @@ class SubgradientLatentSSVM(SubgradientSSVM):
                         break
                 if self.verbose > 0:
                     print(self)
-                    print("iteration %d" % iteration)
-                    print("positive slacks: %d, "
+                    print(("iteration %d" % iteration))
+                    print(("positive slacks: %d, "
                           "objective: %f" %
-                          (positive_slacks, objective))
+                          (positive_slacks, objective)))
                 self.objective_curve_.append(objective)
 
                 if self.verbose > 2:
-                    print(self.w)
+                    print((self.w))
 
                 self._compute_training_loss(X, Y, iteration)
                 if self.logger is not None:
@@ -219,9 +219,9 @@ class SubgradientLatentSSVM(SubgradientSSVM):
             self.logger(self, 'final')
         if self.verbose:
             if self.objective_curve_:
-                print("final objective: %f" % self.objective_curve_[-1])
+                print(("final objective: %f" % self.objective_curve_[-1]))
             if self.verbose and self.n_jobs == 1:
-                print("calls to inference: %d" % self.model.inference_calls)
+                print(("calls to inference: %d" % self.model.inference_calls))
         return self
 
     def predict(self, X):

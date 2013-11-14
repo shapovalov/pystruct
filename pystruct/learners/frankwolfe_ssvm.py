@@ -155,7 +155,7 @@ class FrankWolfeSSVM(BaseSSVM):
         n_samples = float(len(X))
         psi_gt = self.model.batch_psi(X, Y, Y)
 
-        for k in xrange(self.max_iter):
+        for k in range(self.max_iter):
             Y_hat = self.model.batch_loss_augmented_inference(X, Y, self.w,
                                                               relaxed=True)
             dpsi = psi_gt - self.model.batch_psi(X, Y_hat)
@@ -181,8 +181,8 @@ class FrankWolfeSSVM(BaseSSVM):
             self.objective_curve_.append(dual_val)
             self.timestamps_.append(time() - self.timestamps_[0])
             if self.verbose > 0:
-                print("k = %d, dual: %f, dual_gap: %f, primal: %f, gamma: %f"
-                      % (k, dual_val, dual_gap_display, primal_val, gamma))
+                print(("k = %d, dual: %f, dual_gap: %f, primal: %f, gamma: %f"
+                      % (k, dual_val, dual_gap_display, primal_val, gamma)))
 
             # update w and l
             self.w = (1.0 - gamma) * self.w + gamma * ws
@@ -208,9 +208,9 @@ class FrankWolfeSSVM(BaseSSVM):
         k = 0
 
         rng = check_random_state(self.random_state)
-        for p in xrange(self.max_iter):
+        for p in range(self.max_iter):
             if self.verbose > 0:
-                print("Iteration %d" % p)
+                print(("Iteration %d" % p))
 
             perm = np.arange(n_samples)
             if self.sample_method == 'perm':
@@ -259,8 +259,8 @@ class FrankWolfeSSVM(BaseSSVM):
                 self.objective_curve_.append(dual_val)
                 self.timestamps_.append(time() - self.timestamps_[0])
                 if self.verbose > 0:
-                    print("dual: %f, dual_gap: %f, primal: %f"
-                          % (dual_val, dual_gap, primal_val))
+                    print(("dual: %f, dual_gap: %f, primal: %f"
+                          % (dual_val, dual_gap, primal_val)))
                 if dual_gap < self.tol:
                     return
 

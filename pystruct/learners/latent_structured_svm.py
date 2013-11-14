@@ -84,8 +84,8 @@ class LatentSSVM(BaseSSVM):
         self.H_init_ = H_init
         H = H_init
 
-        for iteration in xrange(self.latent_iter):
-            print("LATENT SVM ITERATION %d" % iteration)
+        for iteration in range(self.latent_iter):
+            print(("LATENT SVM ITERATION %d" % iteration))
             # find latent variables for ground truth:
             if iteration == 0:
                 pass
@@ -96,11 +96,11 @@ class LatentSSVM(BaseSSVM):
                     print("no changes in latent variables of ground truth."
                           " stopping.")
                     break
-                print("changes in H: %d" % np.sum(changes))
+                print(("changes in H: %d" % np.sum(changes)))
 
                 # update constraints:
                 if isinstance(self.base_ssvm, NSlackSSVM):
-                    constraints = [[] for i in xrange(len(X))]
+                    constraints = [[] for i in range(len(X))]
                     for sample, h, i in zip(self.base_ssvm.constraints_, H_new,
                                             np.arange(len(X))):
                         for constraint in sample:

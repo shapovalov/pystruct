@@ -41,8 +41,8 @@ def chow_liu_tree(y_):
     # compute mutual information using sklearn
     n_labels = y_.shape[1]
     mi = np.zeros((n_labels, n_labels))
-    for i in xrange(n_labels):
-        for j in xrange(n_labels):
+    for i in range(n_labels):
+        for j in range(n_labels):
             mi[i, j] = mutual_info_score(y_[:, i], y_[:, j])
     mst = minimum_spanning_tree(sparse.csr_matrix(-mi))
     edges = np.vstack(mst.nonzero()).T
@@ -69,7 +69,7 @@ else:
     y_train, y_test = scene['y_train'], scene['y_test']
 
 n_labels = y_train.shape[1]
-full = np.vstack([x for x in itertools.combinations(range(n_labels), 2)])
+full = np.vstack([x for x in itertools.combinations(list(range(n_labels)), 2)])
 tree = chow_liu_tree(y_train)
 
 full_model = MultiLabelClf(edges=full, inference_method='qpbo')
@@ -89,17 +89,17 @@ full_ssvm.fit(X_train, y_train)
 print("fitting tree model...")
 tree_ssvm.fit(X_train, y_train)
 
-print("Training loss independent model: %f"
-      % hamming_loss(y_train, np.vstack(independent_ssvm.predict(X_train))))
-print("Test loss independent model: %f"
-      % hamming_loss(y_test, np.vstack(independent_ssvm.predict(X_test))))
+print(("Training loss independent model: %f"
+      % hamming_loss(y_train, np.vstack(independent_ssvm.predict(X_train)))))
+print(("Test loss independent model: %f"
+      % hamming_loss(y_test, np.vstack(independent_ssvm.predict(X_test)))))
 
-print("Training loss tree model: %f"
-      % hamming_loss(y_train, np.vstack(tree_ssvm.predict(X_train))))
-print("Test loss tree model: %f"
-      % hamming_loss(y_test, np.vstack(tree_ssvm.predict(X_test))))
+print(("Training loss tree model: %f"
+      % hamming_loss(y_train, np.vstack(tree_ssvm.predict(X_train)))))
+print(("Test loss tree model: %f"
+      % hamming_loss(y_test, np.vstack(tree_ssvm.predict(X_test)))))
 
-print("Training loss full model: %f"
-      % hamming_loss(y_train, np.vstack(full_ssvm.predict(X_train))))
-print("Test loss full model: %f"
-      % hamming_loss(y_test, np.vstack(full_ssvm.predict(X_test))))
+print(("Training loss full model: %f"
+      % hamming_loss(y_train, np.vstack(full_ssvm.predict(X_train)))))
+print(("Test loss full model: %f"
+      % hamming_loss(y_test, np.vstack(full_ssvm.predict(X_test)))))

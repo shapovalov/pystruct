@@ -105,12 +105,12 @@ def test_blobs_batch():
     # test inference
     w = np.random.uniform(-1, 1, size=pbl.size_psi)
     Y_hat = pbl.batch_inference(X, w)
-    for i, (x, y_hat) in enumerate(zip(X, Y_hat)):
+    for i, (x, y_hat) in enumerate(list(zip(X, Y_hat))):
         assert_array_equal(Y_hat[i], pbl.inference(x, w))
 
     # test inference
     Y_hat = pbl.batch_loss_augmented_inference(X, Y, w)
-    for i, (x, y, y_hat) in enumerate(zip(X, Y, Y_hat)):
+    for i, (x, y, y_hat) in enumerate(list(zip(X, Y, Y_hat))):
         assert_array_equal(Y_hat[i], pbl.loss_augmented_inference(x, y, w))
 
 

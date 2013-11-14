@@ -77,7 +77,7 @@ class BaseSSVM(BaseEstimator):
                 self.loss_curve_ = []
             display_loss = 1 - self.score(X, Y)
             if self.verbose > 0:
-                print("current loss: %f" % (display_loss))
+                print(("current loss: %f" % (display_loss)))
             self.loss_curve_.append(display_loss)
 
     def _objective(self, X, Y):
