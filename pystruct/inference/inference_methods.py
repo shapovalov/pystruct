@@ -280,7 +280,9 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
         _validate_params(unary_potentials, pairwise_potentials, edges)
 
     edges = edges.copy().astype(np.int32)
-    pairwise_potentials = (1000 * pairwise_potentials).copy().astype(np.int32)
+    maxpot = max(np.max(np.abs(pairwise_potentials)), np.max(np.abs(unary_potentials)))
+    coef = 1000 if maxpot < 1e6 else 1e9 / maxpot # HACK to prevent int overflow
+    pairwise_potentials = (coef * pairwise_potentials).copy().astype(np.int32)
 
     pairwise_cost = {}
     for i in range(0, pairwise_potentials.shape[0]):
@@ -288,7 +290,7 @@ def inference_gco(unary_potentials, pairwise_potentials, edges, **kwargs):
         if cost >= 0:
             pairwise_cost[(edges[i, 0], edges[i, 1])] = cost
 
-    unary_potentials = (-1000 * unary_potentials).copy().astype(np.int32)
+    unary_potentials = (-coef * unary_potentials).copy().astype(np.int32)
 
     if 'n_iter' in kwargs:
         y = cut_from_graph_gen_potts(unary_potentials, pairwise_cost, n_iter=kwargs['n_iter'])
